@@ -56,11 +56,11 @@ export default class FileStorageConcept {
    */
   async upload(
     { name, content }: { name: string; content: string },
-  ): Promise<{ file: FileID } | { error: string }> {
+  ): Promise<{ file: FileID }> {
     // Check precondition: name does not already exist in Files
     const existingFile = await this.filesCollection.findOne({ name });
     if (existingFile) {
-      return { error: `File with name '${name}' already exists.` };
+      throw new Error("This file already exists");
     }
 
     // Effect: add new File to Files with name and content
@@ -84,11 +84,11 @@ export default class FileStorageConcept {
    */
   async remove(
     { name }: { name: string },
-  ): Promise<{ file: FileID } | { error: string }> {
+  ): Promise<{ file: FileID }> {
     // Check precondition: name does exist in Files
     const existingFile = await this.filesCollection.findOne({ name });
     if (!existingFile) {
-      return { error: `File with name '${name}' not found.` };
+      throw new Error("File cannot be removed if it does not exist");
     }
 
     // Effect: remove file with name from Files
@@ -107,11 +107,11 @@ export default class FileStorageConcept {
    */
   async rename(
     { name, newName }: { name: string; newName: string },
-  ): Promise<{ file: FileID } | { error: string }> {
+  ): Promise<{ file: FileID }> {
     // Check precondition 1: name does exist in Files
     const existingFile = await this.filesCollection.findOne({ name });
     if (!existingFile) {
-      return { error: `File with name '${name}' not found.` };
+      throw new Error(`File ${name} does not exist`);
     }
 
     // Check precondition 2: newName does not exist in Files
@@ -119,7 +119,7 @@ export default class FileStorageConcept {
       name: newName,
     });
     if (existingNewNameFile) {
-      return { error: `File with new name '${newName}' already exists.` };
+      throw new Error(`File ${newName} already exists`);
     }
 
     // Effect: replaces name with newName

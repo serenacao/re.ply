@@ -5,6 +5,7 @@ import { ID } from "@utils/types.ts";
 import { generate } from "jsr:@std/uuid/unstable-v7";
 
 async function initMongoClient() {
+  console.log('deno:', Deno.env.toObject());
   const DB_CONN = Deno.env.get("MONGODB_URL");
   if (DB_CONN === undefined) {
     throw new Error("Could not find environment variable: MONGODB_URL");

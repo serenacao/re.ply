@@ -3,14 +3,15 @@
 [@testing-concepts](../../background/testing-concepts.md)
 
 # test: FileStorage
-
+# prompt: 
+i made some changes to file storage implementation, please rewrite tests to match it.
 # response:
 
 ```typescript
 // file: src/FileStorage/FileStorageConcept.test.ts
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals, assertRejects } from "jsr:@std/assert";
 import { testDb } from "@utils/database.ts";
-import FileStorageConcept from "./FileStorageConcept.ts";
+import FileStorageConcept, { FileDocument } from "./FileStorageConcept.ts"; // Import FileDocument type
 import { ID } from "@utils/types.ts";
 
 Deno.test("FileStorageConcept", async (t) => {
@@ -23,9 +24,6 @@ Deno.test("FileStorageConcept", async (t) => {
     const result = await concept.upload({ name: fileName, content: fileContent });
 
     // Verify effects: file is added and an ID is returned
-    if ("error" in result) {
-      throw new Error(`Upload failed: ${result.error}`);
-    }
     const uploadedFileID = result.file;
     assertEquals(typeof uploadedFileID, "string");
 
@@ -44,19 +42,21 @@ Deno.test("FileStorageConcept", async (t) => {
 
     // First upload (expected to succeed)
     const uploadResult1 = await concept.upload({ name: fileName, content: fileContent1 });
-    if ("error" in uploadResult1) {
-      throw new Error(`Initial upload failed: ${uploadResult1.error}`);
-    }
+    assertEquals(typeof uploadResult1.file, "string"); // Expect a file ID to be returned
 
     // Second upload with the same name (expected to fail due to requires)
-    const uploadResult2 = await concept.upload({ name: fileName, content: fileContent2 });
-    assertEquals("error" in uploadResult2, true);
-    assertEquals(uploadResult2.error, `File with name '${fileName}' already exists.`);
+    await assertRejects(
+      async () => {
+        await concept.upload({ name: fileName, content: fileContent2 });
+      },
+      Error,
+      "This file already exists", // Error message from the implementation
+    );
 
-    // Verify state: only one file exists
+    // Verify state: only one file with `fileName` exists, and its content is from the first upload
     const { files } = await concept._files();
     assertEquals(files.length, 2); // resume.pdf from previous test, plus report.docx
-    const reportFile = files.find(f => f.name === fileName);
+    const reportFile = files.find((f: FileDocument) => f.name === fileName);
     assertEquals(reportFile?.content, fileContent1); // Content should be from the first upload
   });
 
@@ -67,28 +67,27 @@ Deno.test("FileStorageConcept", async (t) => {
 
     // Verify file exists before removal
     let { files: filesBeforeRemove } = await concept._files();
-    assertEquals(filesBeforeRemove.some(f => f.name === fileName), true);
+    assertEquals(filesBeforeRemove.some((f: FileDocument) => f.name === fileName), true);
 
     const removeResult = await concept.remove({ name: fileName });
     // Verify effects: file is removed and its ID is returned
-    if ("error" in removeResult) {
-      throw new Error(`Remove failed: ${removeResult.error}`);
-    }
     assertEquals(typeof removeResult.file, "string");
 
     // Verify state change: file is no longer present
     const { files: filesAfterRemove } = await concept._files();
-    assertEquals(filesAfterRemove.some(f => f.name === fileName), false);
+    assertEquals(filesAfterRemove.some((f: FileDocument) => f.name === fileName), false);
     assertEquals(filesAfterRemove.length, 2); // resume.pdf, report.docx remain
   });
 
   await t.step("should prevent removing a non-existent file", async () => {
     const nonExistentFileName = "non_existent.jpg";
-    const removeResult = await concept.remove({ name: nonExistentFileName });
-
-    // Verify requires: error is returned
-    assertEquals("error" in removeResult, true);
-    assertEquals(removeResult.error, `File with name '${nonExistentFileName}' not found.`);
+    await assertRejects(
+      async () => {
+        await concept.remove({ name: nonExistentFileName });
+      },
+      Error,
+      "File cannot be removed if it does not exist", // Error message from the implementation
+    );
 
     // Verify state: no change to existing files
     const { files } = await concept._files();
@@ -103,21 +102,18 @@ Deno.test("FileStorageConcept", async (t) => {
 
     // Verify file exists with original name
     let { files: filesBeforeRename } = await concept._files();
-    assertEquals(filesBeforeRename.some(f => f.name === originalName), true);
-    assertEquals(filesBeforeRename.some(f => f.name === newName), false);
+    assertEquals(filesBeforeRename.some((f: FileDocument) => f.name === originalName), true);
+    assertEquals(filesBeforeRename.some((f: FileDocument) => f.name === newName), false);
 
     const renameResult = await concept.rename({ name: originalName, newName: newName });
     // Verify effects: file is renamed and its ID is returned
-    if ("error" in renameResult) {
-      throw new Error(`Rename failed: ${renameResult.error}`);
-    }
     assertEquals(typeof renameResult.file, "string");
 
     // Verify state change: file now has new name
     const { files: filesAfterRename } = await concept._files();
-    assertEquals(filesAfterRename.some(f => f.name === originalName), false);
-    assertEquals(filesAfterRename.some(f => f.name === newName), true);
-    const renamedFile = filesAfterRename.find(f => f.name === newName);
+    assertEquals(filesAfterRename.some((f: FileDocument) => f.name === originalName), false);
+    assertEquals(filesAfterRename.some((f: FileDocument) => f.name === newName), true);
+    const renamedFile = filesAfterRename.find((f: FileDocument) => f.name === newName);
     assertEquals(renamedFile?.content, content);
     assertEquals(renamedFile?._id, renameResult.file);
   });
@@ -125,11 +121,13 @@ Deno.test("FileStorageConcept", async (t) => {
   await t.step("should prevent renaming a non-existent file", async () => {
     const nonExistentName = "missing.txt";
     const newName = "found.txt";
-    const renameResult = await concept.rename({ name: nonExistentName, newName: newName });
-
-    // Verify requires: error is returned
-    assertEquals("error" in renameResult, true);
-    assertEquals(renameResult.error, `File with name '${nonExistentName}' not found.`);
+    await assertRejects(
+      async () => {
+        await concept.rename({ name: nonExistentName, newName: newName });
+      },
+      Error,
+      `File ${nonExistentName} does not exist`, // Error message from the implementation
+    );
 
     // Verify state: no change to existing files
     const { files } = await concept._files();
@@ -143,19 +141,18 @@ Deno.test("FileStorageConcept", async (t) => {
     await concept.upload({ name: existingFile, content: "Content B" });
 
     // Attempt to rename file_a.txt to file_b.txt
-    const renameResult = await concept.rename({
-      name: fileToRename,
-      newName: existingFile,
-    });
-
-    // Verify requires: error is returned
-    assertEquals("error" in renameResult, true);
-    assertEquals(renameResult.error, `File with new name '${existingFile}' already exists.`);
+    await assertRejects(
+      async () => {
+        await concept.rename({ name: fileToRename, newName: existingFile });
+      },
+      Error,
+      `File ${existingFile} already exists`, // Error message from the implementation
+    );
 
     // Verify state: both files should still exist with their original names
     const { files } = await concept._files();
-    assertEquals(files.some(f => f.name === fileToRename), true);
-    assertEquals(files.some(f => f.name === existingFile), true);
+    assertEquals(files.some((f: FileDocument) => f.name === fileToRename), true);
+    assertEquals(files.some((f: FileDocument) => f.name === existingFile), true);
     assertEquals(files.length, 5); // From previous tests + file_a.txt, file_b.txt
   });
 
@@ -163,7 +160,7 @@ Deno.test("FileStorageConcept", async (t) => {
     // Current state has 5 files (resume.pdf, report.docx, new_document.pdf, file_a.txt, file_b.txt)
     const { files } = await concept._files();
     assertEquals(files.length, 5);
-    assertEquals(files.map(f => f.name).sort(), [
+    assertEquals(files.map((f: FileDocument) => f.name).sort(), [
       "file_a.txt",
       "file_b.txt",
       "new_document.pdf",
@@ -176,6 +173,7 @@ Deno.test("FileStorageConcept", async (t) => {
     // Clear existing files for a clean principle test
     let { files: currentFiles } = await concept._files();
     for (const file of currentFiles) {
+      // These removes should succeed as the files exist
       await concept.remove({ name: file.name });
     }
     currentFiles = (await concept._files()).files;
@@ -192,9 +190,7 @@ Deno.test("FileStorageConcept", async (t) => {
       name: resumeName,
       content: resumeContent,
     });
-    if ("error" in uploadResult) {
-      throw new Error(`Upload failed for principle test: ${uploadResult.error}`);
-    }
+    assertEquals(typeof uploadResult.file, "string");
 
     // Check if the file is available (generator can "utilize" it)
     let { files: afterUpload } = await concept._files();
@@ -205,9 +201,7 @@ Deno.test("FileStorageConcept", async (t) => {
 
     // 2. User chooses to remove files
     const removeResult = await concept.remove({ name: resumeName });
-    if ("error" in removeResult) {
-      throw new Error(`Remove failed for principle test: ${removeResult.error}`);
-    }
+    assertEquals(typeof removeResult.file, "string");
 
     // Check if the file is no longer available (generator will no longer use it)
     const { files: afterRemove } = await concept._files();
