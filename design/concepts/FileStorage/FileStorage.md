@@ -7,19 +7,21 @@
 	- a set of `Files` with
 		- a name of type `String`
 		- a content of type `String`
+		- a User
 
 - actions
-	- upload(name: String, content: String): (File)
-		- requires: name does not already exist in Files
-		- effect: add new File to Files with name and content
-	- remove(name: String): (File)
-		- requires: name does exist in Files
-		- effect: remove file with name from Files
+	- upload(user: User, name: String, content: String): (File)
+		- requires: user exists, name does not already exist in user's Files
+		- effect: add new File to user's Files with name and content
+	- remove(user: User, name: String): (File)
+		- requires: user exists, name does exist in user's Files
+		- effect: remove file with name from user's Files
 	- rename(name: String, newName: String): (File)
-		- requires: name does exist in Files, newName does not exist in Files
-		- effect: replaces name with newName
-	- files(): (Files)
-		- effect: return all Files
+		- requires: user exists, name does exist in user's Files, newName does not exist in user's Files
+		- effect: replaces name with newName in user's Files 
+	- files(user: User): (Files)
+		- requires: user exists 
+		- effect: return all Files under User
 
 
 
