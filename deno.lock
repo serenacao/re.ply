@@ -609,6 +609,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:cors@^2.8.5",
         "npm:mongodb@^6.20.0",
         "npm:utils@~0.3.1"
       ]
