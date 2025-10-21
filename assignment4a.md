@@ -1,7 +1,7 @@
 # Assignment 4a Design File
 
 
-## Not so helpful things
+## Not-so-helpful interesting things
 
 [Context reference](./context/design/concepts/UserAuthentication/Testing.md/steps/response.7b9096fa.md)
 
@@ -24,7 +24,7 @@ To get more details where leaks occurred, run again with the --trace-leaks flag
 - I also found the AI functioned better when I cleared all previous responses, otherwise it was very stubborn in adhering to previous responses. In particular, I was trying to combine add and create for Job Tracker, since adding a job to the user account and creating a job under the user account was splitting up a function that didn't need to be split up, but the AI was refusing to abandon the old spec that I had before.
 
 
-## Helpful things
+## Helpful Interesting things
 
 [Context Reference](./context/design/concepts/JobTracker/Implementation.md/steps/response.ddd03721.md )
 
