@@ -4,6 +4,7 @@ import { walk } from "jsr:@std/fs";
 import { parseArgs } from "jsr:@std/cli/parse-args";
 import { toFileUrl } from "jsr:@std/path/to-file-url";
 import { cors } from "jsr:@hono/hono/cors";
+import { GeminiLLM } from "../gemini-llm.ts";
 
 // Parse command-line arguments for port and base URL
 const flags = parseArgs(Deno.args, {
@@ -17,6 +18,7 @@ const flags = parseArgs(Deno.args, {
 const PORT = parseInt(flags.port, 10);
 const BASE_URL = flags.baseUrl;
 const CONCEPTS_DIR = "src/concepts";
+const LLM = new GeminiLLM();
 
 /**
  * Main server function to initialize DB, load concepts, and start the server.
@@ -50,6 +52,7 @@ async function main() {
       const module = await import(modulePath);
       const ConceptClass = module.default;
       console.log(ConceptClass);
+      const isGenerator = ConceptClass.name == 'GeneratorConcept';
 
       if (
         typeof ConceptClass !== "function" ||
@@ -63,7 +66,14 @@ async function main() {
         continue;
       }
 
-      const instance = new ConceptClass(db);
+      let instance;
+
+      if (isGenerator) {
+        instance = new ConceptClass(LLM);
+      } else {
+        instance = new ConceptClass(db);
+      }
+      
       const conceptApiName = conceptName;
       console.log(
         `- Registering concept: ${conceptName} at ${BASE_URL}/${conceptApiName}`,
