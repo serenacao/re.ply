@@ -15,7 +15,8 @@ Deno.test("UserAuthenticationConcept tests", async (t) => {
     const password = "password123";
 
     // Action: register(username, password)
-    const { user: aliceId } = await concept.register({ username, password });
+    const { user: alice } = await concept.register({ username, password });
+    const aliceId = alice._id;
 
     // Assert: A user ID is returned, fulfilling part of the 'effects'
     assertEquals(typeof aliceId, "string", "A user ID string should be returned.");
@@ -50,10 +51,12 @@ Deno.test("UserAuthenticationConcept tests", async (t) => {
     const password = "securepassword";
 
     // Pre-condition: User must be registered first
-    const { user: charlieId } = await concept.register({ username, password });
+    const { user: charlie } = await concept.register({ username, password });
+    const charlieId = charlie._id;
     
     // Action: authenticate(username, password)
-    const { user: authenticatedCharlieId } = await concept.authenticate({ username, password });
+    const { user: authenticatedCharlie } = await concept.authenticate({ username, password });
+    const authenticatedCharlieId = authenticatedCharlie._id;
 
     // Assert Effect: The authenticated user ID matches the registered user ID
     // This confirms the 'effects: returns user' condition is met for a valid user.
@@ -98,13 +101,15 @@ Deno.test("UserAuthenticationConcept tests", async (t) => {
 
     // 1. Register a user (demonstrates 'register' action's purpose)
     console.log(`TRACE: Attempting to register user '${username}'...`);
-    const { user: eveId } = await concept.register({ username, password });
+    const { user: eve } = await concept.register({ username, password });
+    const eveId = eve._id;
     assertEquals(typeof eveId, "string", "Register action should return a user ID.");
     console.log(`TRACE: Successfully registered user Eve with ID: ${eveId}`);
 
     // 2. Authenticate with the same username and password (demonstrates 'authenticate' action's purpose)
     console.log(`TRACE: Attempting to authenticate user '${username}'...`);
-    const { user: authenticatedEveId } = await concept.authenticate({ username, password });
+    const { user: authenticatedEve } = await concept.authenticate({ username, password });
+    const authenticatedEveId = authenticatedEve._id;
     assertEquals(typeof authenticatedEveId, "string", "Authenticate action should return a user ID.");
     console.log(`TRACE: Successfully authenticated user Eve with ID: ${authenticatedEveId}`);
 

@@ -7,20 +7,18 @@ const PREFIX = "JobTracker" + ".";
 
 // Generic types used by this concept
 export type User = ID; // Represents an external user identifier
-export type Job = ID;  // Represents the unique identifier for a job entry within the tracker
 
 /**
  * Interface representing the structure of a job entry document in MongoDB.
  *
  * a set of Jobs
- *   a User (userId)
+ *   a User (user)
  *   a position of type String
  *   a company of type String
  *   a status of type String
  */
-export interface JobEntry {
-  _id: Job;       // Unique ID for this specific job tracking entry
-  userId: User;   // The user who owns this job entry
+export interface Job {
+  user: User;   // The user who owns this job entry
   position: string;
   company: string;
   status: string; // E.g., "pending", "rejected", "accepted"
@@ -28,7 +26,7 @@ export interface JobEntry {
 
 export default class JobTrackerConcept {
   // MongoDB collection to store job entries
-  jobs: Collection<JobEntry>;
+  jobs: Collection<Job>;
 
   constructor(private readonly db: Db) {
     // Initialize the 'jobs' collection
@@ -49,7 +47,7 @@ export default class JobTrackerConcept {
     // --- Precondition Check (requires) ---
     // Check if a job with the same position and company already exists for this user.
     const existingJob = await this.jobs.findOne({
-      userId: user,
+      user: user,
       position: position,
       company: company,
     });
@@ -59,14 +57,9 @@ export default class JobTrackerConcept {
       throw new Error(`Job for position '${position}' at company '${company}' already exists for user '${user}'.`);
     }
 
-    // --- Effects ---
-    // Generate a fresh ID for the new job entry.
-    const newJobId: Job = freshID();
-
     // Construct the new job entry document.
-    const newJob: JobEntry = {
-      _id: newJobId,
-      userId: user,
+    const newJob: Job = {
+      user: user,
       position: position,
       company: company,
       status: status,
@@ -76,8 +69,8 @@ export default class JobTrackerConcept {
     const result = await this.jobs.insertOne(newJob);
 
     if (result.acknowledged) {
-      // If insertion is successful, return the ID of the newly created job.
-      return { job: newJobId };
+      // If insertion is successful, return the newly created job.
+      return { job: newJob };
     } else {
       // Handle unexpected database issues during insertion.
       throw new Error("Failed to add job due to an unexpected database error.");
@@ -95,20 +88,28 @@ export default class JobTrackerConcept {
    *         or if an unexpected database error occurs during deletion.
    */
   async remove({ user, job }: { user: User; job: Job }): Promise<{ job: Job }> {
+    // Check that the job is owned by the requested user
+    if (job.user !== user) {
+        throw new Error(`Job not found for user '${user}' or not owned by them.`);
+    }
     // --- Precondition Check (requires) ---
-    // Find the job to ensure it exists and is owned by the specified user.
-    const existingJob = await this.jobs.findOne({ _id: job, userId: user });
+    // Find the job to ensure it exists
+    const existingJob = await this.jobs.findOne({
+      user: user,
+      position: job.position,
+      company: job.company,
+    });
     if (!existingJob) {
       // If the job is not found or not owned by the user, throw an error.
-      throw new Error(`Job with ID '${job}' not found for user '${user}' or not owned by them.`);
+      throw new Error(`Job not found for user '${user}' or not owned by them.`);
     }
 
     // --- Effects ---
     // Delete the job entry from the database.
-    const result = await this.jobs.deleteOne({ _id: job, userId: user });
+    const result = await this.jobs.deleteOne(existingJob);
 
     if (result.deletedCount === 1) {
-      // If successfully deleted, return the ID of the removed job.
+      // If successfully deleted, return the removed job.
       return { job: job };
     } else {
       // This case indicates a potential race condition or database issue after the findOne.
@@ -127,12 +128,31 @@ export default class JobTrackerConcept {
    *         or if an unexpected database error occurs during the update.
    */
   async update({ user, job, position, company, status }: { user: User; job: Job; position: string; company: string; status: string }): Promise<{ job: Job }> {
+    // Check if the job is owned by requested user
+    if (job.user !== user) {
+        throw new Error(`Job not found for user '${user}' or not owned by them.`);
+    }
+
     // --- Precondition Check (requires) ---
-    // Find the job to ensure it exists and is owned by the specified user.
-    const existingJob = await this.jobs.findOne({ _id: job, userId: user });
+    // Ensure that the job exists under user
+    const existingJob = await this.jobs.findOne({
+      user: user,
+      position: job.position,
+      company: job.company,
+    });
     if (!existingJob) {
       // If the job is not found or not owned by the user, throw an error.
-      throw new Error(`Job with ID '${job}' not found for user '${user}' or not owned by them.`);
+      throw new Error(`Job not found for user '${user}' or not owned by them.`);
+    }
+    // Check that new job does not exist 
+    const newJob = await this.jobs.findOne({
+        user: user,
+        position: position,
+        company: company
+    })
+
+    if (newJob && existingJob && !newJob._id.equals(existingJob._id)) {
+        throw new Error(`Job already exists!`);
     }
 
     // Note: The concept specification for 'update' does not explicitly include
@@ -145,14 +165,14 @@ export default class JobTrackerConcept {
     // --- Effects ---
     // Update the specified fields of the job entry.
     const result = await this.jobs.updateOne(
-      { _id: job, userId: user },
+      existingJob,
       { $set: { position: position, company: company, status: status } },
     );
-
+    
     if (result.modifiedCount === 1 || (result.matchedCount === 1 && result.modifiedCount === 0)) {
       // If the job was modified or if it matched but no actual change was needed (same data provided),
-      // consider it a successful update and return the job's ID.
-      return { job: job };
+      // consider it a successful update and return the new job
+      return {job: { user: user, position: position, company: company, status: status }};
     } else {
       // Handle cases where the job couldn't be updated (e.g., deleted by another process
       // between findOne and updateOne, though findOne should prevent most of this).
@@ -168,8 +188,8 @@ export default class JobTrackerConcept {
    *
    * effects: Returns an array of JobEntry objects associated with the user.
    */
-  async getJobs({ user }: { user: User }): Promise<{ jobs: JobEntry[] }> {
-    const userJobs = await this.jobs.find({ userId: user }).toArray();
+  async getJobs({ user }: { user: User }): Promise<{ jobs: Job[] }> {
+    const userJobs = await this.jobs.find({ user: user }).toArray();
     return { jobs: userJobs };
   }
 }

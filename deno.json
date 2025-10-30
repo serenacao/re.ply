@@ -1,6 +1,7 @@
 {
     "imports": {
         "@concepts/": "./src/concepts/",
+        "@std/dotenv": "jsr:@std/dotenv@^0.225.5",
         "@utils/": "./src/utils/"
     },
     "tasks": {
