@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals, assertArrayIncludes } from "jsr:@std/assert";
-import { GeneratorConcept, File, ILLM } from "./GeneratorConcept.ts"; // Adjust path as necessary if structure differs
+import  GeneratorConcept, { File, ILLM } from "./GeneratorConcept.ts"; // Adjust path as necessary if structure differs
 
 // --- Mock LLM Implementation ---
 class MockLLM implements ILLM {

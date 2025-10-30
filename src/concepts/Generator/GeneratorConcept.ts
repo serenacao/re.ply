@@ -26,6 +26,12 @@ export default class GeneratorConcept {
     private accepted: boolean = false;
     private feedbackHistory: string[] = [];
     private currentFiles: File[] = []; // Added to track files for regeneration
+    
+
+    constructor(private readonly llm: GeminiLLM) {
+        // Initialize the 'jobs' collection
+        this.llm = new GeminiLLM();
+      }
 
     /**
      * updateInput(files: File[]):
@@ -43,18 +49,18 @@ export default class GeneratorConcept {
      *
      * **effects** generate a draft to the question using the files provided with accepted FALSE
      */
-    async generate(question: string, llm: ILLM, files: File[]): Promise<{ draft: string } | { error: string }> {
+    async generate(question: string, files: File[]): Promise<{ draft: string } | { error: string }> {
         if (this.accepted) {
             return { error: "Cannot generate new draft after current draft has been accepted." };
         }
-        if (!await this.isQuestion(question, llm)) {
+        if (!await this.isQuestion(question, this.llm)) {
             return { error: 'The input is not a valid question.' };
         }
         this.questionInput = question;
         this.updateInput(files); // Ensure files are updated for subsequent operations
         // console.log('🤖 Requesting response from LLM...'); // Log for debugging
         const prompt = this.createPrompt(this.currentFiles);
-        const text = await llm.executeLLM(prompt);
+        const text = await this.llm.executeLLM(prompt);
         this.draft = text;
         this.accepted = false; // Reset accepted status for a new generation
         this.feedbackHistory = []; // Clear feedback history for a new question
@@ -86,7 +92,7 @@ export default class GeneratorConcept {
      *
      * **effects** replaces current draft with newDraft, adds to feedback history
      */
-    async edit(llm: ILLM, newDraft: string): Promise<Record<PropertyKey, never> | { error: string }> {
+    async edit(newDraft: string): Promise<Record<PropertyKey, never> | { error: string }> {
         if (!this.draft) {
             return { error: "No draft exists to edit." };
         }
@@ -94,7 +100,7 @@ export default class GeneratorConcept {
             return { error: "Cannot edit an accepted draft." };
         }
         const oldDraft = this.draft;
-        await this.updateFeedbackFromEdit(llm, oldDraft, newDraft);
+        await this.updateFeedbackFromEdit(this.llm, oldDraft, newDraft);
         this.draft = newDraft;
         return {};
     }
@@ -106,18 +112,18 @@ export default class GeneratorConcept {
      *
      * **effects** adds to feedback history, generate new text with updated content based off all feedback so far and current files
      */
-    async feedback(llm: ILLM, comment: string): Promise<{ draft: string } | { error: string }> {
+    async feedback(comment: string): Promise<{ draft: string } | { error: string }> {
         if (!this.draft) {
             return { error: "No draft exists to provide feedback on." };
         }
         if (this.accepted) {
             return { error: "Cannot provide feedback on an accepted draft." };
         }
-        if (!await this.isFeedback(comment, llm)) {
+        if (!await this.isFeedback(comment, this.llm)) {
             return { error: 'Please submit valid actionable feedback.' };
         }
         this.feedbackHistory.push(comment);
-        const revised = await this.regenerateWithFeedback(llm);
+        const revised = await this.regenerateWithFeedback(this.llm);
         this.draft = revised;
         return { draft: this.draft };
     }
