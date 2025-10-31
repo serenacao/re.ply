@@ -5,28 +5,12 @@ export interface File {
     content: string;
 }
 
-// Although the concept spec implies a 'Question' entity with 'draft' and 'accepted' properties,
-// the current implementation stores these as direct properties of the Generator instance itself.
-// So, the 'Question' interface here is not directly used for the concept's state model in the current code,
-// but rather implicitly represented by the Generator's fields.
-// For consistency with the spec's state, it's good to keep in mind, but the testing will target the Generator's properties.
-// interface Question {
-//     draft: string;
-//     accepted: boolean;
-// }
-
-// The LLM interface used for mocking in tests
-export interface ILLM {
-    executeLLM(prompt: string): Promise<string>;
-}
-
-export default class GeneratorConcept { 
-    private questionInput: string = ""; // Renamed to avoid conflict with method parameter
+export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict with the file name and indicate it's the concept implementation
+    private question: string = ""; // Renamed to avoid conflict with method parameter
     private draft: string = "";
     private accepted: boolean = false;
     private feedbackHistory: string[] = [];
     private currentFiles: File[] = []; // Added to track files for regeneration
-    
 
     constructor(private readonly llm: GeminiLLM) {
         // Initialize the 'jobs' collection
@@ -38,105 +22,89 @@ export default class GeneratorConcept {
      *
      * **effects** updates files used to generate draft
      */
-    public updateInput(files: File[]): void {
+    public updateInput({files} : {files: File[]}): void {
         this.currentFiles = files;
     }
 
     /**
-     * async generate(question: String, llm: LLM, files: File[]): (draft: String)
+     * async generate(question: String, files: File[]): (draft: String)
      *
      * **requires** question is a valid question
      *
      * **effects** generate a draft to the question using the files provided with accepted FALSE
      */
-    async generate(question: string, files: File[]): Promise<{ draft: string } | { error: string }> {
+    async generate({question, files} : {question: string, files: File[]}): Promise<{draft: string}> {
+        console.log('question on backend', question);
+
         if (this.accepted) {
-            return { error: "Cannot generate new draft after current draft has been accepted." };
+            throw new Error("Cannot generate new draft after current draft has been accepted.");
         }
-        if (!await this.isQuestion(question, this.llm)) {
-            return { error: 'The input is not a valid question.' };
+        if (!await this.isQuestion(question)) {
+            throw new Error("The input is not a valid question.");
         }
-        this.questionInput = question;
-        this.updateInput(files); // Ensure files are updated for subsequent operations
+        this.question = question;
+        this.updateInput({files}); // Ensure files are updated for subsequent operations
         // console.log('🤖 Requesting response from LLM...'); // Log for debugging
         const prompt = this.createPrompt(this.currentFiles);
         const text = await this.llm.executeLLM(prompt);
         this.draft = text;
         this.accepted = false; // Reset accepted status for a new generation
         this.feedbackHistory = []; // Clear feedback history for a new question
-        return { draft: text };
+        return {draft: this.draft};
     }
 
     /**
-     * accept(): (draft: String)
-     *
-     * **requires** question to exist and draft status is not accepted
-     *
-     * **effects** set draft status to accepted
-     */
-    accept(): { draft: string } | { error: string } {
-        if (!this.questionInput) {
-            return { error: "No question or draft exists to accept." };
-        }
-        if (this.accepted) {
-            return { error: "Draft is already accepted." };
-        }
-        this.accepted = true;
-        return { draft: this.draft };
-    }
-
-    /**
-     * edit(llm: LLM, newDraft: String): Empty
+     * edit(newDraft: String): Empty
      *
      * **requires** draft status is not accepted, draft already exists
      *
      * **effects** replaces current draft with newDraft, adds to feedback history
      */
-    async edit(newDraft: string): Promise<Record<PropertyKey, never> | { error: string }> {
+    async edit({newDraft}:{newDraft: string}): Promise<{draft: string}> {
         if (!this.draft) {
-            return { error: "No draft exists to edit." };
+            throw new Error("No draft exists to edit.");
         }
         if (this.accepted) {
-            return { error: "Cannot edit an accepted draft." };
+            throw new Error("Cannot edit an accepted draft.");
         }
         const oldDraft = this.draft;
-        await this.updateFeedbackFromEdit(this.llm, oldDraft, newDraft);
+        await this.updateFeedbackFromEdit(oldDraft, newDraft);
         this.draft = newDraft;
-        return {};
+        return {draft: this.draft};
     }
 
     /**
-     * async feedback(llm: LLM, feedback: string): (draft: String)
+     * async feedback(feedback: string): (draft: String)
      *
      * **requires** feedback to be a valid feedback for a draft, draft has not yet been accepted
      *
      * **effects** adds to feedback history, generate new text with updated content based off all feedback so far and current files
      */
-    async feedback(comment: string): Promise<{ draft: string } | { error: string }> {
+    async feedback({comment}:{comment: string}): Promise<{draft: string}> {
         if (!this.draft) {
-            return { error: "No draft exists to provide feedback on." };
+            throw new Error("No draft exists to provide feedback on." );
         }
         if (this.accepted) {
-            return { error: "Cannot provide feedback on an accepted draft." };
+            throw new Error("Cannot provide feedback on an accepted draft.");
         }
-        if (!await this.isFeedback(comment, this.llm)) {
-            return { error: 'Please submit valid actionable feedback.' };
+        if (!await this.isFeedback(comment)) {
+            throw new Error('Please submit valid actionable feedback.');
         }
         this.feedbackHistory.push(comment);
-        const revised = await this.regenerateWithFeedback(this.llm);
+        const revised = await this.regenerateWithFeedback();
         this.draft = revised;
-        return { draft: this.draft };
+        return {draft: this.draft};
     }
 
     // --- Internal / Helper Methods (renamed to private) ---
 
-    private async isItem(prompt: string, llm: ILLM): Promise<boolean> {
-        const response = await llm.executeLLM(prompt);
+    private async isItem(prompt: string): Promise<boolean> {
+        const response = await this.llm.executeLLM(prompt);
         return response.trim().toLowerCase() === 'yes';
     }
 
-    private async isQuestion(input: string, llm: ILLM): Promise<boolean> {
-        const prompt = `You are a strict text classifier.
+    private async isQuestion(input: string): Promise<boolean> {
+        const prompt = `You are a lenient text classifier.
 
         Determine if the input is a message asking for help writing or improving materials related to a job, internship, or professional application.
 
@@ -160,17 +128,16 @@ export default class GeneratorConcept {
 
         Is unrelated to job or professional applications
 
-        Asks a general question, performs math, or contains only numbers, greetings, or casual conversation
 
         Respond with exactly one word: Yes or No
         Do not include any explanations or reasoning.
 
         Input: "${input}"
         Answer:`;
-        return this.isItem(prompt, llm);
+        return await this.isItem(prompt);
     }
 
-    private async isFeedback(input: string, llm: ILLM): Promise<boolean> {
+    private async isFeedback(input: string): Promise<boolean> {
         const prompt = `You are a strict text classifier.
 
         Determine if the input is a message giving feedback or instructions about how to improve a piece of writing.
@@ -202,18 +169,17 @@ export default class GeneratorConcept {
         Input: "${input}"
 
         Answer:`;
-        return this.isItem(
-            prompt,
-            llm);
+        return await this.isItem(
+            prompt);
     }
 
-    private async regenerateWithFeedback(llm: ILLM): Promise<string> {
+    private async regenerateWithFeedback(): Promise<string> {
         const prompt = this.createFeedbackPrompt() + "\n\nCurrent draft:\n" + this.draft;
-        const revised = await llm.executeLLM(prompt);
+        const revised = await this.llm.executeLLM(prompt);
         return revised;
     }
 
-    private async updateFeedbackFromEdit(llm: ILLM, oldDraft: string, newDraft: string): Promise<void> {
+    private async updateFeedbackFromEdit(oldDraft: string, newDraft: string): Promise<void> {
         if (oldDraft === newDraft) {
             return;
         }
@@ -241,17 +207,17 @@ export default class GeneratorConcept {
 
         Output:`;
 
-        const text = await llm.executeLLM(prompt);
+        const text = await this.llm.executeLLM(prompt);
 
         try {
             const feedback: string[] = JSON.parse(text);
             if (Array.isArray(feedback)){
                 this.feedbackHistory.push(...feedback);
             } else {
-                // console.error('❌ Parsed feedback is not an array:', feedback); // Log for debugging
+                console.error('❌ Parsed feedback is not an array:', feedback); // Log for debugging
             }
         } catch (error) {
-            // console.error('❌ Error parsing feedback from LLM:', (error as Error).message); // Log for debugging
+            console.error('❌ Error parsing feedback from LLM:', (error as Error).message); // Log for debugging
         }
 
     }
@@ -272,7 +238,7 @@ export default class GeneratorConcept {
     private createPrompt(files: File[]): string {
         return `You are an expert job application writer. Use the following files as context:\n` +
             files.map(f => `File: ${f.name}\nContent: ${f.content}\n`).join('') +
-            `\nUser question: "${this.questionInput}".
+            `\nUser question: "${this.question}".
             Instructions: Respond directly and only with the answer to the question. Do NOT include greetings, explanations, or extra commentary. Output only the requested text.
             `;
     }
@@ -289,7 +255,7 @@ export default class GeneratorConcept {
     public getFeedbackHistory(): string[] {
         return [...this.feedbackHistory]; // Return a copy
     }
-    public getQuestionInput(): string {
-        return this.questionInput;
+    public getquestion(): string {
+        return this.question;
     }
 }

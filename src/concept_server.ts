@@ -73,7 +73,7 @@ async function main() {
       } else {
         instance = new ConceptClass(db);
       }
-      
+
       const conceptApiName = conceptName;
       console.log(
         `- Registering concept: ${conceptName} at ${BASE_URL}/${conceptApiName}`,
@@ -93,7 +93,11 @@ async function main() {
         app.post(route, async (c) => {
           try {
             const body = await c.req.json().catch(() => ({})); // Handle empty body
+            console.log('post body', body)
+            console.log('instance,', instance)
+            console.log('method name', methodName)
             const result = await instance[methodName](body);
+            console.log('result', result)
             return c.json(result);
           } catch (e) {
             console.error(`Error in ${conceptName}.${methodName}:`, e);

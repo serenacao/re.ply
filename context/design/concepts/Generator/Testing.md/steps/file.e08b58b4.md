@@ -1,67 +1,70 @@
-[@concept-design-overview](../../background/concept-design-overview.md)
+---
+timestamp: 'Thu Oct 30 2025 12:32:53 GMT-0400 (Eastern Daylight Time)'
+parent: '[[../20251030_123253.541c0a3e.md]]'
+content_id: e08b58b487d449da21a3043ac850cf6edacb61d0f5a9df8a210ba95236ce6fc5
+---
 
-[@concept-specifications](../../background/concept-specifications.md)
-
-[@implementing-concepts](../../background/implementing-concepts.md)
-
-[@generator-concept](/design/concepts/Generator/Generator.md)
-
-# implement: Generator
-# prompt: please reject projmises instead of returning string errors.
-
+# file: src/concepts/Generator/GeneratorConcept.ts
 
 ```typescript
-
+import { Empty } from "@utils/types.ts";
 
 export interface File {
     name: string;
     content: string;
 }
 
-export class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict with the file name and indicate it's the concept implementation
-    private question: string = ""; // Renamed to avoid conflict with method parameter
+// Define the LLM interface for mocking
+export interface ILLM {
+    executeLLM(prompt: string): Promise<string>;
+}
+
+export default class GeneratorConcept { // Renamed from GeneratorConcept to default export
+    private question: string = "";
     private draft: string = "";
     private accepted: boolean = false;
     private feedbackHistory: string[] = [];
-    private currentFiles: File[] = []; // Added to track files for regeneration
+    private currentFiles: File[] = [];
 
-    constructor(private readonly llm: GeminiLLM) {
-        // Initialize the 'jobs' collection
-        this.llm = new GeminiLLM();
-      }
+    // Correctly use the injected LLM, assuming GeminiLLM implements ILLM
+    constructor(private readonly llm: ILLM) {}
 
     /**
-     * updateInput(files: File[]):
+     * updateInput(files: File[]): Empty
      *
      * **effects** updates files used to generate draft
      */
-    public updateInput(files: File[]): void {
+    public updateInput(files: File[]): Empty {
         this.currentFiles = files;
+        return {}; // Return empty dictionary as per concept design
     }
 
     /**
-     * async generate(question: String, files: File[]): (draft: String)
+     * async generate(question: String, llm: LLM, files: File[]): (draft: String)
      *
      * **requires** question is a valid question
      *
      * **effects** generate a draft to the question using the files provided with accepted FALSE
      */
-    async generate(question: string, files: File[]): Promise<string> {
+    async generate(question: string, llm: ILLM, files: File[]): Promise<{ draft: string }> {
         if (this.accepted) {
             throw new Error("Cannot generate new draft after current draft has been accepted.");
         }
-        if (!await this.isQuestion(question)) {
+        const isValidQuestion = await this.isQuestion(question, llm);
+        if (!isValidQuestion) {
             throw new Error("The input is not a valid question.");
         }
+
         this.question = question;
         this.updateInput(files); // Ensure files are updated for subsequent operations
-        // console.log('🤖 Requesting response from LLM...'); // Log for debugging
+
         const prompt = this.createPrompt(this.currentFiles);
-        const text = await this.llm.executeLLM(prompt);
+        const text = await llm.executeLLM(prompt);
+
         this.draft = text;
         this.accepted = false; // Reset accepted status for a new generation
         this.feedbackHistory = []; // Clear feedback history for a new question
-        return text;
+        return { draft: text }; // Return as dictionary
     }
 
     /**
@@ -71,68 +74,73 @@ export class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict
      *
      * **effects** set draft status to accepted
      */
-    accept(): string {
+    accept(): { draft: string } {
         if (!this.question) {
             throw new Error("No question or draft exists to accept.");
         }
         if (this.accepted) {
-            throw new Error("Draft is already accepted." );
+            throw new Error("Draft is already accepted.");
         }
         this.accepted = true;
-        return this.draft;
+        return { draft: this.draft }; // Return as dictionary
     }
 
     /**
-     * edit(newDraft: String): Empty
+     * edit(llm: LLM, newDraft: String): (draft: String)
      *
      * **requires** draft status is not accepted, draft already exists
      *
      * **effects** replaces current draft with newDraft, adds to feedback history
      */
-    async edit(newDraft: string): Promise<string> {
+    async edit(llm: ILLM, newDraft: string): Promise<{ draft: string }> {
         if (!this.draft) {
             throw new Error("No draft exists to edit.");
         }
         if (this.accepted) {
             throw new Error("Cannot edit an accepted draft.");
         }
+
         const oldDraft = this.draft;
-        await this.updateFeedbackFromEdit(oldDraft, newDraft);
+        // Inferred feedback is added to history
+        await this.updateFeedbackFromEdit(llm, oldDraft, newDraft);
+
         this.draft = newDraft;
-        return this.draft;
+        return { draft: this.draft }; // Return as dictionary
     }
 
     /**
-     * async feedback(feedback: string): (draft: String)
+     * async feedback(llm: LLM, feedback: string): (draft: String)
      *
      * **requires** feedback to be a valid feedback for a draft, draft has not yet been accepted
      *
      * **effects** adds to feedback history, generate new text with updated content based off all feedback so far and current files
      */
-    async feedback(comment: string): Promise<string> {
+    async feedback(llm: ILLM, comment: string): Promise<{ draft: string }> {
         if (!this.draft) {
-            throw new Error("No draft exists to provide feedback on." );
+            throw new Error("No draft exists to provide feedback on.");
         }
         if (this.accepted) {
             throw new Error("Cannot provide feedback on an accepted draft.");
         }
-        if (!await this.isFeedback(comment)) {
+        const isValidFeedback = await this.isFeedback(comment, llm);
+        if (!isValidFeedback) {
             throw new Error('Please submit valid actionable feedback.');
         }
+
         this.feedbackHistory.push(comment);
-        const revised = await this.regenerateWithFeedback();
+        const revised = await this.regenerateWithFeedback(llm);
         this.draft = revised;
-        return this.draft;
+        return { draft: this.draft }; // Return as dictionary
     }
 
-    // --- Internal / Helper Methods (renamed to private) ---
+    // --- Internal / Helper Methods (private) ---
 
-    private async isItem(prompt: string): Promise<boolean> {
-        const response = await this.llm.executeLLM(prompt);
+    private async isItem(prompt: string, llm: ILLM): Promise<boolean> {
+        const response = await llm.executeLLM(prompt);
         return response.trim().toLowerCase() === 'yes';
     }
 
-    private async isQuestion(input: string): Promise<boolean> {
+    private async isQuestion(input: string, llm: ILLM): Promise<boolean> {
         const prompt = `You are a strict text classifier.
 
         Determine if the input is a message asking for help writing or improving materials related to a job, internship, or professional application.
@@ -164,10 +172,10 @@ export class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict
 
         Input: "${input}"
         Answer:`;
-        return this.isItem(prompt);
+        return this.isItem(prompt, llm);
     }
 
-    private async isFeedback(input: string): Promise<boolean> {
+    private async isFeedback(input: string, llm: ILLM): Promise<boolean> {
         const prompt = `You are a strict text classifier.
 
         Determine if the input is a message giving feedback or instructions about how to improve a piece of writing.
@@ -201,16 +209,29 @@ export class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict
         Answer:`;
         return this.isItem(
             prompt,
-            this.llm);
+            llm);
     }
 
-    private async regenerateWithFeedback(): Promise<string> {
-        const prompt = this.createFeedbackPrompt() + "\n\nCurrent draft:\n" + this.draft;
-        const revised = await this.llm.executeLLM(prompt);
+    private async regenerateWithFeedback(llm: ILLM): Promise<string> {
+        let prompt = `The user has provided the following feedback on the draft:\n`;
+        this.feedbackHistory.forEach((fb, index) => {
+            prompt += `${index + 1}. ${fb}\n`;
+        });
+        prompt += `Please revise the following draft accordingly.
+        Rules:
+            - Do NOT include greetings, explanations, or meta-commentary.
+            - Output only the revised text.
+            - Maintain the tone and style suitable for a professional job application.
+            - Incorporate the context from the files provided initially, if any.
+        Current draft:\n` + this.draft;
+        // console.log("--- Feedback Prompt ---");
+        // console.log(prompt);
+        // console.log("-----------------------");
+        const revised = await llm.executeLLM(prompt);
         return revised;
     }
 
-    private async updateFeedbackFromEdit(oldDraft: string, newDraft: string): Promise<void> {
+    private async updateFeedbackFromEdit(llm: ILLM, oldDraft: string, newDraft: string): Promise<void> {
         if (oldDraft === newDraft) {
             return;
         }
@@ -238,32 +259,19 @@ export class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict
 
         Output:`;
 
-        const text = await this.llm.executeLLM(prompt);
+        const text = await llm.executeLLM(prompt);
 
         try {
             const feedback: string[] = JSON.parse(text);
-            if (Array.isArray(feedback)){
+            if (Array.isArray(feedback)) {
                 this.feedbackHistory.push(...feedback);
             } else {
-                // console.error('❌ Parsed feedback is not an array:', feedback); // Log for debugging
+                // console.error('❌ Parsed feedback is not an array:', feedback);
             }
         } catch (error) {
-            // console.error('❌ Error parsing feedback from LLM:', (error as Error).message); // Log for debugging
+            // console.error('❌ Error parsing feedback from LLM:', (error as Error).message);
         }
 
-    }
-
-    private createFeedbackPrompt(): string {
-        let prompt = `The user has provided the following feedback on the draft:\n`;
-        this.feedbackHistory.forEach((fb, index) => {
-            prompt += `${index + 1}. ${fb}\n`;
-        });
-        prompt += `Please revise the draft accordingly.
-        Rules:
-            - Do NOT include greetings, explanations, or meta-commentary.
-            - Output only the revised text.
-            - Maintain the tone and style suitable for a professional job application.`;
-        return prompt;
     }
 
     private createPrompt(files: File[]): string {
@@ -286,8 +294,11 @@ export class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict
     public getFeedbackHistory(): string[] {
         return [...this.feedbackHistory]; // Return a copy
     }
-    public getquestion(): string {
+    public getQuestion(): string { // Renamed for consistency
         return this.question;
+    }
+    public getCurrentFiles(): File[] {
+        return [...this.currentFiles];
     }
 }
 ```
