@@ -4,21 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "0191866cebf1b7c3",
+        "id": "c1fef1b62cff65f5",
         "type": "tabs",
         "children": [
           {
-            "id": "101a4b3f532e6c6a",
+            "id": "7d69f29fb5c64cd0",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "design/concepts/JobTracker/JobTracker.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "JobTracker"
+              "title": "New tab"
             }
           }
         ]
@@ -169,8 +165,9 @@
       "bases:Create new base": false
     }
   },
-  "active": "101a4b3f532e6c6a",
+  "active": "7d69f29fb5c64cd0",
   "lastOpenFiles": [
+    "design/concepts/JobTracker/JobTracker.md",
     "node_modules/cors/lib/index.js",
     "node_modules/cors/package.json",
     "node_modules/cors/lib",
@@ -185,7 +182,6 @@
     "node_modules/object-assign/index.js",
     "node_modules/object-assign",
     "node_modules/vary/package.json",
-    "node_modules/vary/index.js",
     "node_modules/vary/README.md",
     "node_modules/vary/HISTORY.md",
     "design/concepts/FileStorage/ApiImplementation.md",

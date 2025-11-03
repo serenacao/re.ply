@@ -49,11 +49,14 @@ async function main() {
       const modulePath = toFileUrl(Deno.realPathSync(conceptFilePath)).href;
       const module = await import(modulePath);
       const ConceptClass = module.default;
+      console.log(ConceptClass);
 
       if (
         typeof ConceptClass !== "function" ||
         !ConceptClass.name.endsWith("Concept")
       ) {
+        console.warn('concept name ends with concept', !ConceptClass.name.endsWith("Concept"));
+        console.warn('type of conceptclass is not function', typeof ConceptClass !== "function")
         console.warn(
           `! No valid concept class found in ${conceptFilePath}. Skipping.`,
         );

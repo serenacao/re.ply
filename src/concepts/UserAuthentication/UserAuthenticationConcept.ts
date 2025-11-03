@@ -46,13 +46,13 @@ export default class UserAuthenticationConcept {
      * @action register
      * @param {string} username - The desired username.
      * @param {string} password - The desired password.
-     * @returns {{ user: UserID }} On successful registration, returns the ID of the new user.
+     * @returns {{ user: User }} On successful registration, returns the new user.
      * @requires username does not exist already
      * @effects creates a new User with username and password
      */
     async register(
         { username, password }: { username: string; password: string },
-    ): Promise<{ user: UserID }> {
+    ): Promise<{ user: User }> {
         // Check if username already exists
         const existingUser = await this.users.findOne({ username });
         if (existingUser) {
@@ -68,7 +68,7 @@ export default class UserAuthenticationConcept {
 
         await this.users.insertOne(newUser);
 
-        return { user: newUser._id };
+        return { user: newUser };
     }
 
     /**
@@ -77,19 +77,19 @@ export default class UserAuthenticationConcept {
      * @action authenticate
      * @param {string} username - The username provided for authentication.
      * @param {string} password - The password provided for authentication.
-     * @returns {{ user: UserID }} On successful authentication, returns the ID of the authenticated user.
+     * @returns {{ user: User }} On successful authentication, returns the ID of the authenticated user.
      * @requires user with username and password to exist
      * @effects returns user
      */
     async authenticate(
         { username, password }: { username: string, password: string },
-    ): Promise<{ user: UserID }> {
+    ): Promise<{ user: User }> {
         // Find a user that matches both username and password
         const authenticatedUser = await this.users.findOne({ username, password });
 
         if (authenticatedUser) {
             // Authentication successful, return the user's ID
-            return { user: authenticatedUser._id };
+            return { user: authenticatedUser };
         } else {
             // Authentication failed
             throw new Error("Invalid username or password");

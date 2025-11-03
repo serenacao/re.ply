@@ -1,64 +1,144 @@
+[@concept-design-overview](../../background/concept-design-overview.md)
+
+[@concept-specifications](../../background/concept-specifications.md)
+
+[@implementing-concepts](../../background/implementing-concepts.md)
+
+[@generator-concept](/design/concepts/Generator/Generator.md)
 
 ```typescript
-import { GeminiLLM } from './gemini-llm';
+import { GeminiLLM } from './gemini-llm.ts'; // Assuming gemini-llm.ts is in the same directory
 
 export interface File {
     name: string;
     content: string;
 }
 
-export interface Question {
-    draft: string;
-    accepted: boolean;
+// Although the concept spec implies a 'Question' entity with 'draft' and 'accepted' properties,
+// the current implementation stores these as direct properties of the Generator instance itself.
+// So, the 'Question' interface here is not directly used for the concept's state model in the current code,
+// but rather implicitly represented by the Generator's fields.
+// For consistency with the spec's state, it's good to keep in mind, but the testing will target the Generator's properties.
+// interface Question {
+//     draft: string;
+//     accepted: boolean;
+// }
+
+// The LLM interface used for mocking in tests
+export interface ILLM {
+    executeLLM(prompt: string): Promise<string>;
 }
 
-export class Generator {
-    private question: string = "";
+export class ConceptGenerator { // Renamed to ConceptGenerator to avoid conflict with the file name and indicate it's the concept implementation
+    private questionInput: string = ""; // Renamed to avoid conflict with method parameter
     private draft: string = "";
     private accepted: boolean = false;
     private feedbackHistory: string[] = [];
+    private currentFiles: File[] = []; // Added to track files for regeneration
 
+    /**
+     * updateInput(files: File[]):
+     *
+     * **effects** updates files used to generate draft
+     */
+    public updateInput(files: File[]): void {
+        this.currentFiles = files;
+    }
 
-    async generate(question: string, llm: GeminiLLM, files: File[]): Promise<string> {
-        if (!await this.isQuestion(question, llm)) {
-            console.log('❌ The input is not a valid question.');
-            return this.draft;
+    /**
+     * async generate(question: String, llm: LLM, files: File[]): (draft: String)
+     *
+     * **requires** question is a valid question
+     *
+     * **effects** generate a draft to the question using the files provided with accepted FALSE
+     */
+    async generate(question: string, llm: ILLM, files: File[]): Promise<{ draft: string } | { error: string }> {
+        if (this.accepted) {
+            return { error: "Cannot generate new draft after current draft has been accepted." };
         }
-        this.question = question;
-        console.log('🤖 Requesting response from Gemini AI...');
-        const prompt = this.createPrompt(files);
+        if (!await this.isQuestion(question, llm)) {
+            return { error: 'The input is not a valid question.' };
+        }
+        this.questionInput = question;
+        this.updateInput(files); // Ensure files are updated for subsequent operations
+        // console.log('🤖 Requesting response from LLM...'); // Log for debugging
+        const prompt = this.createPrompt(this.currentFiles);
         const text = await llm.executeLLM(prompt);
         this.draft = text;
-        return text;
+        this.accepted = false; // Reset accepted status for a new generation
+        this.feedbackHistory = []; // Clear feedback history for a new question
+        return { draft: text };
     }
 
-    edit(llm: GeminiLLM, newDraft: string): void {
-        const oldDraft = this.draft;
-        this.updateFeedback(llm, oldDraft, newDraft);
-        this.draft = newDraft;
-    }
-
-    accept(): void {
+    /**
+     * accept(): (draft: String)
+     *
+     * **requires** question to exist and draft status is not accepted
+     *
+     * **effects** set draft status to accepted
+     */
+    accept(): { draft: string } | { error: string } {
+        if (!this.questionInput) {
+            return { error: "No question or draft exists to accept." };
+        }
+        if (this.accepted) {
+            return { error: "Draft is already accepted." };
+        }
         this.accepted = true;
+        return { draft: this.draft };
     }
 
-    async feedback(llm: GeminiLLM, comment: string): Promise<string> {
-        if (!this.isFeedback(comment, llm)) { 
-            console.error('❌ Please submit valid actionable feedback.'); 
-            return this.draft; 
+    /**
+     * edit(llm: LLM, newDraft: String): Empty
+     *
+     * **requires** draft status is not accepted, draft already exists
+     *
+     * **effects** replaces current draft with newDraft, adds to feedback history
+     */
+    async edit(llm: ILLM, newDraft: string): Promise<Record<PropertyKey, never> | { error: string }> {
+        if (!this.draft) {
+            return { error: "No draft exists to edit." };
+        }
+        if (this.accepted) {
+            return { error: "Cannot edit an accepted draft." };
+        }
+        const oldDraft = this.draft;
+        await this.updateFeedbackFromEdit(llm, oldDraft, newDraft);
+        this.draft = newDraft;
+        return {};
+    }
+
+    /**
+     * async feedback(llm: LLM, feedback: string): (draft: String)
+     *
+     * **requires** feedback to be a valid feedback for a draft, draft has not yet been accepted
+     *
+     * **effects** adds to feedback history, generate new text with updated content based off all feedback so far and current files
+     */
+    async feedback(llm: ILLM, comment: string): Promise<{ draft: string } | { error: string }> {
+        if (!this.draft) {
+            return { error: "No draft exists to provide feedback on." };
+        }
+        if (this.accepted) {
+            return { error: "Cannot provide feedback on an accepted draft." };
+        }
+        if (!await this.isFeedback(comment, llm)) {
+            return { error: 'Please submit valid actionable feedback.' };
         }
         this.feedbackHistory.push(comment);
         const revised = await this.regenerateWithFeedback(llm);
         this.draft = revised;
-        return this.draft
+        return { draft: this.draft };
     }
 
-    async isItem(prompt: string, llm: GeminiLLM): Promise<boolean> {
+    // --- Internal / Helper Methods (renamed to private) ---
+
+    private async isItem(prompt: string, llm: ILLM): Promise<boolean> {
         const response = await llm.executeLLM(prompt);
         return response.trim().toLowerCase() === 'yes';
     }
 
-    async isQuestion(input: string, llm: GeminiLLM): Promise<boolean> {
+    private async isQuestion(input: string, llm: ILLM): Promise<boolean> {
         const prompt = `You are a strict text classifier.
 
         Determine if the input is a message asking for help writing or improving materials related to a job, internship, or professional application.
@@ -93,7 +173,7 @@ export class Generator {
         return this.isItem(prompt, llm);
     }
 
-    async isFeedback(input: string, llm: GeminiLLM): Promise<boolean> {
+    private async isFeedback(input: string, llm: ILLM): Promise<boolean> {
         const prompt = `You are a strict text classifier.
 
         Determine if the input is a message giving feedback or instructions about how to improve a piece of writing.
@@ -119,47 +199,47 @@ export class Generator {
         - "Hi there."
         - "Explain recursion."
 
-        Respond with exactly one word: Yes or No.  
+        Respond with exactly one word: Yes or No.
         Do not include any explanations or reasoning.
 
         Input: "${input}"
 
         Answer:`;
         return this.isItem(
-            prompt, 
+            prompt,
             llm);
     }
 
-    async regenerateWithFeedback(llm: GeminiLLM): Promise<string> {
+    private async regenerateWithFeedback(llm: ILLM): Promise<string> {
         const prompt = this.createFeedbackPrompt() + "\n\nCurrent draft:\n" + this.draft;
         const revised = await llm.executeLLM(prompt);
         return revised;
     }
 
-    async updateFeedback(llm: GeminiLLM, oldDraft: string, newDraft: string): Promise<void> {
+    private async updateFeedbackFromEdit(llm: ILLM, oldDraft: string, newDraft: string): Promise<void> {
         if (oldDraft === newDraft) {
             return;
         }
-        const prompt = `You are an assistant that analyzes revisions to writing.  
-        You will be given two drafts of text: Draft A (original) and Draft B (revised).  
+        const prompt = `You are an assistant that analyzes revisions to writing.
+        You will be given two drafts of text: Draft A (original) and Draft B (revised).
 
         Your task:
-        1. Compare Draft A and Draft B.  
-        2. Identify what types of changes were made (e.g., tone, clarity, structure, word choice, level of detail, formatting, conciseness).  
-        3. Infer the possible feedback or instruction that caused those changes.  
+        1. Compare Draft A and Draft B.
+        2. Identify what types of changes were made (e.g., tone, clarity, structure, word choice, level of detail, formatting, conciseness).
+        3. Infer the possible feedback or instruction that caused those changes.
         4. Return the feedback as a Python list of short, actionable strings.
         5. Output only the Python list—no explanations, no extra text.
 
-        Example:  
-        - If Draft A is casual and Draft B is more formal, the feedback might be: ["Write with a more professional tone."] 
+        Example:
+        - If Draft A is casual and Draft B is more formal, the feedback might be: ["Write with a more professional tone."]
         - If Draft A rambles and Draft B is shorter, the feedback might be: ["Be more concise and remove unnecessary detail."]
 
         ---
 
-        Draft A:  
+        Draft A:
         ${oldDraft}
 
-        Draft B:  
+        Draft B:
         ${newDraft}
 
         Output:`;
@@ -171,12 +251,12 @@ export class Generator {
             if (Array.isArray(feedback)){
                 this.feedbackHistory.push(...feedback);
             } else {
-                console.error('❌ Parsed feedback is not an array:', feedback);
+                // console.error('❌ Parsed feedback is not an array:', feedback); // Log for debugging
             }
         } catch (error) {
-            console.error('❌ Error parsing feedback from LLM:', (error as Error).message);
+            // console.error('❌ Error parsing feedback from LLM:', (error as Error).message); // Log for debugging
         }
-        
+
     }
 
     private createFeedbackPrompt(): string {
@@ -195,9 +275,25 @@ export class Generator {
     private createPrompt(files: File[]): string {
         return `You are an expert job application writer. Use the following files as context:\n` +
             files.map(f => `File: ${f.name}\nContent: ${f.content}\n`).join('') +
-            `\nUser question: "${this.question}".
+            `\nUser question: "${this.questionInput}".
             Instructions: Respond directly and only with the answer to the question. Do NOT include greetings, explanations, or extra commentary. Output only the requested text.
             `;
+    }
+
+    // --- Getters for testing internal state ---
+    public getDraft(): string {
+        return this.draft;
+    }
+
+    public isAccepted(): boolean {
+        return this.accepted;
+    }
+
+    public getFeedbackHistory(): string[] {
+        return [...this.feedbackHistory]; // Return a copy
+    }
+    public getQuestionInput(): string {
+        return this.questionInput;
     }
 }
 ```

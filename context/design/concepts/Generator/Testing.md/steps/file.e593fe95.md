@@ -1,0 +1,301 @@
+---
+timestamp: 'Thu Oct 30 2025 00:04:22 GMT-0400 (Eastern Daylight Time)'
+parent: '[[../20251030_000422.ed1b0fee.md]]'
+content_id: e593fe959f542763d8d539deb7b341f722e38c2557d90ad8c4dfe7ee4de93b70
+---
+
+# file: src/conceptGenerator/conceptGeneratorConcept.ts
+
+First, I'll add the necessary getters to the `Generator` class to allow for proper state inspection during testing, as the concept specification's effects need to be verified. This doesn't alter the concept's specified behavior but exposes its internal state for testing purposes.
+
+```typescript
+import { GeminiLLM } from './gemini-llm.ts'; // Assuming gemini-llm.ts is in the same directory
+
+export interface File {
+    name: string;
+    content: string;
+}
+
+// Although the concept spec implies a 'Question' entity with 'draft' and 'accepted' properties,
+// the current implementation stores these as direct properties of the Generator instance itself.
+// So, the 'Question' interface here is not directly used for the concept's state model in the current code,
+// but rather implicitly represented by the Generator's fields.
+// For consistency with the spec's state, it's good to keep in mind, but the testing will target the Generator's properties.
+// interface Question {
+//     draft: string;
+//     accepted: boolean;
+// }
+
+// The LLM interface used for mocking in tests
+export interface ILLM {
+    executeLLM(prompt: string): Promise<string>;
+}
+
+export class ConceptGenerator { // Renamed to ConceptGenerator to avoid conflict with the file name and indicate it's the concept implementation
+    private questionInput: string = ""; // Renamed to avoid conflict with method parameter
+    private draft: string = "";
+    private accepted: boolean = false;
+    private feedbackHistory: string[] = [];
+    private currentFiles: File[] = []; // Added to track files for regeneration
+
+    /**
+     * updateInput(files: File[]):
+     *
+     * **effects** updates files used to generate draft
+     */
+    public updateInput(files: File[]): void {
+        this.currentFiles = files;
+    }
+
+    /**
+     * async generate(question: String, llm: LLM, files: File[]): (draft: String)
+     *
+     * **requires** question is a valid question
+     *
+     * **effects** generate a draft to the question using the files provided with accepted FALSE
+     */
+    async generate(question: string, llm: ILLM, files: File[]): Promise<{ draft: string } | { error: string }> {
+        if (this.accepted) {
+            return { error: "Cannot generate new draft after current draft has been accepted." };
+        }
+        if (!await this.isQuestion(question, llm)) {
+            return { error: 'The input is not a valid question.' };
+        }
+        this.questionInput = question;
+        this.updateInput(files); // Ensure files are updated for subsequent operations
+        // console.log('🤖 Requesting response from LLM...'); // Log for debugging
+        const prompt = this.createPrompt(this.currentFiles);
+        const text = await llm.executeLLM(prompt);
+        this.draft = text;
+        this.accepted = false; // Reset accepted status for a new generation
+        this.feedbackHistory = []; // Clear feedback history for a new question
+        return { draft: text };
+    }
+
+    /**
+     * accept(): (draft: String)
+     *
+     * **requires** question to exist and draft status is not accepted
+     *
+     * **effects** set draft status to accepted
+     */
+    accept(): { draft: string } | { error: string } {
+        if (!this.questionInput) {
+            return { error: "No question or draft exists to accept." };
+        }
+        if (this.accepted) {
+            return { error: "Draft is already accepted." };
+        }
+        this.accepted = true;
+        return { draft: this.draft };
+    }
+
+    /**
+     * edit(llm: LLM, newDraft: String): Empty
+     *
+     * **requires** draft status is not accepted, draft already exists
+     *
+     * **effects** replaces current draft with newDraft, adds to feedback history
+     */
+    async edit(llm: ILLM, newDraft: string): Promise<Record<PropertyKey, never> | { error: string }> {
+        if (!this.draft) {
+            return { error: "No draft exists to edit." };
+        }
+        if (this.accepted) {
+            return { error: "Cannot edit an accepted draft." };
+        }
+        const oldDraft = this.draft;
+        await this.updateFeedbackFromEdit(llm, oldDraft, newDraft);
+        this.draft = newDraft;
+        return {};
+    }
+
+    /**
+     * async feedback(llm: LLM, feedback: string): (draft: String)
+     *
+     * **requires** feedback to be a valid feedback for a draft, draft has not yet been accepted
+     *
+     * **effects** adds to feedback history, generate new text with updated content based off all feedback so far and current files
+     */
+    async feedback(llm: ILLM, comment: string): Promise<{ draft: string } | { error: string }> {
+        if (!this.draft) {
+            return { error: "No draft exists to provide feedback on." };
+        }
+        if (this.accepted) {
+            return { error: "Cannot provide feedback on an accepted draft." };
+        }
+        if (!await this.isFeedback(comment, llm)) {
+            return { error: 'Please submit valid actionable feedback.' };
+        }
+        this.feedbackHistory.push(comment);
+        const revised = await this.regenerateWithFeedback(llm);
+        this.draft = revised;
+        return { draft: this.draft };
+    }
+
+    // --- Internal / Helper Methods (renamed to private) ---
+
+    private async isItem(prompt: string, llm: ILLM): Promise<boolean> {
+        const response = await llm.executeLLM(prompt);
+        return response.trim().toLowerCase() === 'yes';
+    }
+
+    private async isQuestion(input: string, llm: ILLM): Promise<boolean> {
+        const prompt = `You are a strict text classifier.
+
+        Determine if the input is a message asking for help writing or improving materials related to a job, internship, or professional application.
+
+        Classify as "Yes" if the message:
+
+        Asks for writing or editing help with any professional application or profile content, such as:
+
+        cover letters
+
+        answers to “why fit” or other application questions
+
+        personal statements
+
+        LinkedIn summaries, professional bios, or resumes
+
+        other materials for jobs, internships, or professional profiles
+
+        Mentions a company, position, or platform (e.g., LinkedIn) OR clearly refers to professional writing (e.g., “Draft a LinkedIn summary,” “Write my bio for work”)
+
+        Classify as "No" if the message:
+
+        Is unrelated to job or professional applications
+
+        Asks a general question, performs math, or contains only numbers, greetings, or casual conversation
+
+        Respond with exactly one word: Yes or No
+        Do not include any explanations or reasoning.
+
+        Input: "${input}"
+        Answer:`;
+        return this.isItem(prompt, llm);
+    }
+
+    private async isFeedback(input: string, llm: ILLM): Promise<boolean> {
+        const prompt = `You are a strict text classifier.
+
+        Determine if the input is a message giving feedback or instructions about how to improve a piece of writing.
+
+        Classify as "Yes" if the message:
+        - Gives revision feedback, writing advice, or improvement instructions (e.g., "Make it more concise", "Improve the tone", "Add more detail about leadership").
+        - Contains editing-related language such as revise, improve, clarify, shorten, reword, or adjust.
+        - Could reasonably be interpreted as feedback on writing style, structure, or content.
+
+        Classify as "No" if the message:
+        - Is unrelated to writing feedback.
+        - Asks a question, gives general information, or includes no feedback intent.
+
+        Examples of "Yes":
+        - "Make it more concise."
+        - "Focus on leadership and impact."
+        - "Revise the tone to sound more professional."
+        - "Add a stronger conclusion."
+
+        Examples of "No":
+        - "Write me a cover letter."
+        - "What is 1+1?"
+        - "Hi there."
+        - "Explain recursion."
+
+        Respond with exactly one word: Yes or No.
+        Do not include any explanations or reasoning.
+
+        Input: "${input}"
+
+        Answer:`;
+        return this.isItem(
+            prompt,
+            llm);
+    }
+
+    private async regenerateWithFeedback(llm: ILLM): Promise<string> {
+        const prompt = this.createFeedbackPrompt() + "\n\nCurrent draft:\n" + this.draft;
+        const revised = await llm.executeLLM(prompt);
+        return revised;
+    }
+
+    private async updateFeedbackFromEdit(llm: ILLM, oldDraft: string, newDraft: string): Promise<void> {
+        if (oldDraft === newDraft) {
+            return;
+        }
+        const prompt = `You are an assistant that analyzes revisions to writing.
+        You will be given two drafts of text: Draft A (original) and Draft B (revised).
+
+        Your task:
+        1. Compare Draft A and Draft B.
+        2. Identify what types of changes were made (e.g., tone, clarity, structure, word choice, level of detail, formatting, conciseness).
+        3. Infer the possible feedback or instruction that caused those changes.
+        4. Return the feedback as a Python list of short, actionable strings.
+        5. Output only the Python list—no explanations, no extra text.
+
+        Example:
+        - If Draft A is casual and Draft B is more formal, the feedback might be: ["Write with a more professional tone."]
+        - If Draft A rambles and Draft B is shorter, the feedback might be: ["Be more concise and remove unnecessary detail."]
+
+        ---
+
+        Draft A:
+        ${oldDraft}
+
+        Draft B:
+        ${newDraft}
+
+        Output:`;
+
+        const text = await llm.executeLLM(prompt);
+
+        try {
+            const feedback: string[] = JSON.parse(text);
+            if (Array.isArray(feedback)){
+                this.feedbackHistory.push(...feedback);
+            } else {
+                // console.error('❌ Parsed feedback is not an array:', feedback); // Log for debugging
+            }
+        } catch (error) {
+            // console.error('❌ Error parsing feedback from LLM:', (error as Error).message); // Log for debugging
+        }
+
+    }
+
+    private createFeedbackPrompt(): string {
+        let prompt = `The user has provided the following feedback on the draft:\n`;
+        this.feedbackHistory.forEach((fb, index) => {
+            prompt += `${index + 1}. ${fb}\n`;
+        });
+        prompt += `Please revise the draft accordingly.
+        Rules:
+            - Do NOT include greetings, explanations, or meta-commentary.
+            - Output only the revised text.
+            - Maintain the tone and style suitable for a professional job application.`;
+        return prompt;
+    }
+
+    private createPrompt(files: File[]): string {
+        return `You are an expert job application writer. Use the following files as context:\n` +
+            files.map(f => `File: ${f.name}\nContent: ${f.content}\n`).join('') +
+            `\nUser question: "${this.questionInput}".
+            Instructions: Respond directly and only with the answer to the question. Do NOT include greetings, explanations, or extra commentary. Output only the requested text.
+            `;
+    }
+
+    // --- Getters for testing internal state ---
+    public getDraft(): string {
+        return this.draft;
+    }
+
+    public isAccepted(): boolean {
+        return this.accepted;
+    }
+
+    public getFeedbackHistory(): string[] {
+        return [...this.feedbackHistory]; // Return a copy
+    }
+    public getQuestionInput(): string {
+        return this.questionInput;
+    }
+}
+```

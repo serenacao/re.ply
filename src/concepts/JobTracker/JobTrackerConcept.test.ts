@@ -2,7 +2,7 @@ import { assertEquals, assertRejects } from "jsr:@std/assert";
 import { Collection, Db } from "npm:mongodb";
 import { ID } from "@utils/types.ts";
 import { testDb } from "@utils/database.ts"; // Assuming testDb is correctly exported from here
-import JobTrackerConcept from "./JobTrackerConcept.ts";
+import JobTrackerConcept, { Job } from "./JobTrackerConcept.ts";
 
 // Define a test user and some job details
 const USER_ALICE: ID = "user:Alice" as ID;
@@ -20,6 +20,13 @@ const JOB_3_POS = "UX Designer";
 const JOB_3_COMP = "Apple";
 const JOB_3_STATUS = "rejected";
 
+const NON_EXISTENT_JOB = {
+      user: '',
+      position: '',
+      company: '',
+      status: '',
+    } as Job;
+
 Deno.test("JobTracker Concept Tests", async (test) => {
   const [db, client] = await testDb();
   const jobTracker = new JobTrackerConcept(db);
@@ -30,21 +37,20 @@ Deno.test("JobTracker Concept Tests", async (test) => {
   });
 
   await test.step("add: should successfully add a new job", async () => {
-    const { job: job1Id } = await jobTracker.add({
+     await jobTracker.add({
       user: USER_ALICE,
       position: JOB_1_POS,
       company: JOB_1_COMP,
       status: JOB_1_STATUS,
     });
-    assertEquals(typeof job1Id, "string"); // Check if an ID was returned
 
     const { jobs } = await jobTracker.getJobs({ user: USER_ALICE });
+    console.log('jobs under alice',jobs);
     assertEquals(jobs.length, 1);
-    assertEquals(jobs[0].userId, USER_ALICE);
+    assertEquals(jobs[0].user, USER_ALICE);
     assertEquals(jobs[0].position, JOB_1_POS);
     assertEquals(jobs[0].company, JOB_1_COMP);
     assertEquals(jobs[0].status, JOB_1_STATUS);
-    assertEquals(jobs[0]._id, job1Id);
   });
 
   await test.step("add: should throw an error when adding a duplicate job for the same user", async () => {
@@ -67,35 +73,36 @@ Deno.test("JobTracker Concept Tests", async (test) => {
   });
 
   await test.step("add: should allow adding the same job details for a different user", async () => {
-    const { job: job1BobId } = await jobTracker.add({
+    await jobTracker.add({
       user: USER_BOB,
       position: JOB_1_POS,
       company: JOB_1_COMP,
       status: JOB_1_STATUS,
     });
-    assertEquals(typeof job1BobId, "string");
 
     const { jobs: aliceJobs } = await jobTracker.getJobs({ user: USER_ALICE });
     assertEquals(aliceJobs.length, 1); // Alice still has only her job
 
     const { jobs: bobJobs } = await jobTracker.getJobs({ user: USER_BOB });
     assertEquals(bobJobs.length, 1); // Bob has his job
-    assertEquals(bobJobs[0].userId, USER_BOB);
+    assertEquals(bobJobs[0].user, USER_BOB);
     assertEquals(bobJobs[0].position, JOB_1_POS);
     assertEquals(bobJobs[0].company, JOB_1_COMP);
     assertEquals(bobJobs[0].status, JOB_1_STATUS);
-    assertEquals(bobJobs[0]._id, job1BobId);
   });
 
-  let aliceJob2Id: ID;
+  let aliceJob2Info: {position: string, company: string};
+  let aliceJob2: Job;
   await test.step("add: should allow adding multiple distinct jobs for the same user", async () => {
-    const { job: newJobId } = await jobTracker.add({
+    aliceJob2 = {
       user: USER_ALICE,
       position: JOB_2_POS,
       company: JOB_2_COMP,
       status: JOB_2_STATUS,
-    });
-    aliceJob2Id = newJobId; // Store for later tests
+    };
+    await jobTracker.add(aliceJob2);
+
+    aliceJob2Info = { position: JOB_2_POS, company: JOB_2_COMP }
 
     const { jobs } = await jobTracker.getJobs({ user: USER_ALICE });
     assertEquals(jobs.length, 2); // Alice now has two jobs
@@ -107,43 +114,42 @@ Deno.test("JobTracker Concept Tests", async (test) => {
   await test.step("remove: should successfully remove an existing job by the owner", async () => {
     // First, ensure Alice has the job we're about to remove
     const { jobs: aliceJobsBeforeRemove } = await jobTracker.getJobs({ user: USER_ALICE });
-    const jobToRemove = aliceJobsBeforeRemove.find(j => j._id === aliceJob2Id);
+    const jobToRemove = aliceJobsBeforeRemove.find(job => job.company == aliceJob2Info.company && job.position == aliceJob2Info.position);
     assertEquals(!!jobToRemove, true, "Job to remove should exist before removal");
 
     // Perform removal
-    const { job: removedJobId } = await jobTracker.remove({
+    const { job: removedJob } = await jobTracker.remove({
       user: USER_ALICE,
-      job: aliceJob2Id,
+      job: aliceJob2,
     });
-    assertEquals(removedJobId, aliceJob2Id);
+    assertEquals(removedJob, aliceJob2);
 
     // Verify it's gone
     const { jobs: aliceJobsAfterRemove } = await jobTracker.getJobs({ user: USER_ALICE });
     assertEquals(aliceJobsAfterRemove.length, 1); // Alice now has only one job left
     assertEquals(
-      aliceJobsAfterRemove.some((j) => j._id === aliceJob2Id),
+      aliceJobsAfterRemove.some(job => job.company == aliceJob2Info.company && job.position == aliceJob2Info.position),
       false,
     );
   });
 
   await test.step("remove: should throw an error when removing a non-existent job", async () => {
-    const nonExistentJobId = "job:nonexistent" as ID;
     await assertRejects(
-      () => jobTracker.remove({ user: USER_ALICE, job: nonExistentJobId }),
+      () => jobTracker.remove({ user: USER_ALICE, job: NON_EXISTENT_JOB }),
       Error,
-      `Job with ID '${nonExistentJobId}' not found for user '${USER_ALICE}' or not owned by them.`,
+      `Job not found for user '${USER_ALICE}' or not owned by them.`,
     );
   });
 
   await test.step("remove: should throw an error when a user tries to remove another user's job", async () => {
     // Get Bob's job ID
     const { jobs: bobJobs } = await jobTracker.getJobs({ user: USER_BOB });
-    const bobJobId = bobJobs[0]._id;
-
+    const bobJob = bobJobs[0];
+    console.log('bobjob', bobJob)
     await assertRejects(
-      () => jobTracker.remove({ user: USER_ALICE, job: bobJobId }), // Alice tries to remove Bob's job
+      () => jobTracker.remove({ user: USER_ALICE, job: bobJob }), // Alice tries to remove Bob's job
       Error,
-      `Job with ID '${bobJobId}' not found for user '${USER_ALICE}' or not owned by them.`,
+      `Job not found for user '${USER_ALICE}' or not owned by them.`,
     );
 
     // Ensure Bob's job still exists
@@ -151,77 +157,77 @@ Deno.test("JobTracker Concept Tests", async (test) => {
     assertEquals(bobJobsAfterAttempt.length, 1);
   });
 
-  let aliceJob1Id: ID;
+  let aliceJob: Job;
   await test.step("update: should successfully update an existing job", async () => {
     // Get Alice's remaining job ID (the first one added)
     const { jobs: aliceJobs } = await jobTracker.getJobs({ user: USER_ALICE });
     assertEquals(aliceJobs.length, 1);
-    aliceJob1Id = aliceJobs[0]._id;
+    aliceJob = aliceJobs[0];
 
     const newPosition = "Senior Software Engineer";
     const newStatus = "interviewing";
 
-    const { job: updatedJobId } = await jobTracker.update({
+    const {job: newJob} = await jobTracker.update({
       user: USER_ALICE,
-      job: aliceJob1Id,
+      job: aliceJob,
       position: newPosition,
       company: JOB_1_COMP, // Company remains the same
       status: newStatus,
     });
-    assertEquals(updatedJobId, aliceJob1Id);
+    aliceJob = newJob;
 
     const { jobs: updatedAliceJobs } = await jobTracker.getJobs({ user: USER_ALICE });
     assertEquals(updatedAliceJobs.length, 1);
     assertEquals(updatedAliceJobs[0].position, newPosition);
     assertEquals(updatedAliceJobs[0].company, JOB_1_COMP);
     assertEquals(updatedAliceJobs[0].status, newStatus);
-    assertEquals(updatedAliceJobs[0]._id, aliceJob1Id);
   });
 
   await test.step("update: should return successfully even if no data actually changes", async () => {
     // Update with the same data again
-    const { job: updatedJobId } = await jobTracker.update({
+    const { job: updatedJob } = await jobTracker.update({
       user: USER_ALICE,
-      job: aliceJob1Id,
-      position: "Senior Software Engineer",
-      company: JOB_1_COMP,
-      status: "interviewing",
+      job: aliceJob,
+      position: aliceJob.position,
+      company: aliceJob.company,
+      status: aliceJob.status,
     });
-    assertEquals(updatedJobId, aliceJob1Id);
+    assertEquals(updatedJob.position, aliceJob.position);
+    assertEquals(updatedJob.company, aliceJob.company);
   });
 
   await test.step("update: should throw an error when updating a non-existent job", async () => {
-    const nonExistentJobId = "job:nonexistent" as ID;
+    
     await assertRejects(
       () =>
         jobTracker.update({
           user: USER_ALICE,
-          job: nonExistentJobId,
+          job: NON_EXISTENT_JOB,
           position: "Fake",
           company: "Fake",
           status: "Fake",
         }),
       Error,
-      `Job with ID '${nonExistentJobId}' not found for user '${USER_ALICE}' or not owned by them.`,
+      `Job not found for user '${USER_ALICE}' or not owned by them.`,
     );
   });
 
   await test.step("update: should throw an error when a user tries to update another user's job", async () => {
     // Get Bob's job ID
     const { jobs: bobJobs } = await jobTracker.getJobs({ user: USER_BOB });
-    const bobJobId = bobJobs[0]._id;
+    const bobJob = bobJobs[0];
 
     await assertRejects(
       () =>
         jobTracker.update({
           user: USER_ALICE, // Alice tries to update Bob's job
-          job: bobJobId,
+          job: bobJob,
           position: "Evil Genius",
           company: "Evil Corp",
           status: "hired",
         }),
       Error,
-      `Job with ID '${bobJobId}' not found for user '${USER_ALICE}' or not owned by them.`,
+      `Job not found for user '${USER_ALICE}' or not owned by them.`,
     );
 
     // Ensure Bob's job details remain unchanged
@@ -257,11 +263,11 @@ Deno.test("JobTracker Concept Tests", async (test) => {
     // We have Alice's jobs (2) and Bob's jobs (1)
     const { jobs: aliceJobs } = await jobTracker.getJobs({ user: USER_ALICE });
     assertEquals(aliceJobs.length, 2);
-    assertEquals(aliceJobs.every((j) => j.userId === USER_ALICE), true);
+    assertEquals(aliceJobs.every((j) => j.user === USER_ALICE), true);
 
     const { jobs: bobJobs } = await jobTracker.getJobs({ user: USER_BOB });
     assertEquals(bobJobs.length, 1);
-    assertEquals(bobJobs.every((j) => j.userId === USER_BOB), true);
+    assertEquals(bobJobs.every((j) => j.user === USER_BOB), true);
   });
 
   // --- Trace the principle ---

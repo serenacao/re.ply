@@ -1,365 +1,570 @@
-``` typescript
-/**
- * Generator Test Cases
- * 
- * Demonstrates text generation and feedback using GeminiLLM
- */
+[@implementation](Implementation.md)
+[@generator-concept](/design/concepts/Generator/Generator.md)
 
-import { Generator, File } from './generator';
-import { GeminiLLM, Config } from './gemini-llm';
 
-/**
- * Load configuration from config.json
- */
-function loadConfig(): Config {
-    try {
-        const config = require('../config.json');
-        return config;
-    } catch (error) {
-        console.error('❌ Error loading config.json. Please ensure it exists with your API key.');
-        console.error('Error details:', (error as Error).message);
-        process.exit(1);
+[@testing-concepts](../../background/testing-concepts.md)
+
+# test: Generator
+# prompt: please note that t.afterAll and t.beforeEach do not exist in Deno, and be careful to not use them.
+
+# response:
+
+
+# response:
+
+```typescript
+// file: src/Generator/GeneratorConcept.test.ts
+import { assertEquals, assertNotEquals, assertArrayIncludes } from "jsr:@std/assert";
+import { ConceptGenerator, File, ILLM } from "./GeneratorConcept.ts"; // Adjust path as necessary if structure differs
+
+// --- Mock LLM Implementation ---
+class MockLLM implements ILLM {
+    private responses: Record<string, string> = {};
+    private defaultResponse: string = "This is a generated draft.";
+    private questionValidationResponse: string = "Yes"; // Default to valid question
+    private feedbackValidationResponse: string = "Yes"; // Default to valid feedback
+    private editFeedbackResponse: string = `["Made it more concise.", "Improved tone."]` // Default for edit feedback
+    private regeneratedResponse: string = "This is a regenerated draft based on feedback.";
+
+    setResponse(promptPart: string, response: string) {
+        this.responses[promptPart] = response;
+    }
+
+    setDefaultResponse(response: string) {
+        this.defaultResponse = response;
+    }
+
+    setQuestionValidation(isValid: boolean) {
+        this.questionValidationResponse = isValid ? "Yes" : "No";
+    }
+
+    setFeedbackValidation(isValid: boolean) {
+        this.feedbackValidationResponse = isValid ? "Yes" : "No";
+    }
+
+    setRegeneratedResponse(response: string) {
+        this.regeneratedResponse = response;
+    }
+
+    setEditFeedbackResponse(response: string) {
+        this.editFeedbackResponse = response;
+    }
+
+    async executeLLM(prompt: string): Promise<string> {
+        // console.log(`MockLLM received prompt:\n${prompt}`); // Uncomment for verbose debugging of LLM prompts
+        if (prompt.includes("Determine if the input is a message asking for help writing")) {
+            return this.questionValidationResponse;
+        }
+        if (prompt.includes("Determine if the input is a message giving feedback")) {
+            return this.feedbackValidationResponse;
+        }
+        if (prompt.includes("You are an assistant that analyzes revisions to writing.")) {
+            return this.editFeedbackResponse;
+        }
+        if (prompt.includes("Please revise the draft accordingly.")) {
+            return this.regeneratedResponse;
+        }
+        for (const key in this.responses) {
+            if (prompt.includes(key)) {
+                return this.responses[key];
+            }
+        }
+        return this.defaultResponse;
     }
 }
 
-const resume1 = `
-Alice Smith
-
-Software Engineer — 3 years experience at TechCorp
-alice.smith@email.com
- · (555) 012-3456 · San Francisco, CA · linkedin.com/in/alice-smith
-
-Professional Summary
-
-Practical and results-driven Software Engineer with 3 years building scalable front-end and full-stack features at TechCorp. Comfortable owning features end-to-end: design, implementation, testing, and deployment. Passionate about product-driven development, readable code, and mentoring junior engineers.
-
-Technical Skills
-
-Languages: JavaScript (ES6+), TypeScript, Python, SQL
-
-Frameworks & Tools: React, Node.js, Express, Next.js, REST APIs, GraphQL
-
-Testing & CI: Jest, React Testing Library, GitHub Actions
-
-Cloud & Datastores: AWS (S3, Lambda), Docker, PostgreSQL
-
-Others: Agile/Scrum, design systems, performance optimization, code review
-
-Professional Experience
-
-TechCorp — Software Engineer
-June 2022 - Present (3 years)
-
-Led development of a reusable React component library used across 6 product teams, reducing UI duplication and accelerating feature delivery by ~30%.
-
-Owned the end-to-end implementation of a customer-facing dashboard: designed API contracts, implemented React front-end and Node.js backend endpoints, and added analytics instrumentation; contributed to a 12% increase in feature adoption.
-
-Improved page load performance by optimizing bundle splitting and lazy-loading critical routes — decreased Time to Interactive (TTI) by 40% on key flows.
-
-Implemented automated testing and CI pipelines (Jest + GitHub Actions), raising test coverage on core modules from 28% to 78%.
-
-Mentored 2 junior engineers, ran weekly code review sessions, and helped establish team best practices for component documentation and accessibility.
-
-Early Projects / Contract Work
-Freelance & internal initiatives
-
-Built a small ETL tool in Python to normalize client CSVs into a canonical format and load into Postgres — reduced manual preprocessing time by 90%.
-
-Created a prototype A/B experiment runner to validate UX changes on landing pages, instrumented with lightweight analytics events.
-
-Selected Projects
-
-Feature Flagging System (internal) — Designed a lightweight feature-flag service and client library that enabled safe rollouts and instant rollbacks across environments.
-Mobile-first Checkout Flow — Rebuilt checkout UI with accessibility and mobile performance priorities; conversion improved in low-bandwidth tests.
-
-Education
-
-B.S., Computer Science  — MIT
-Graduation: 2021 
-
-Interests
-
-Technical writing, open-source contributions, mentoring, cycling.
-`;
-
-const resume2 = `
-Data Scientist — 5 years experience at DataWorks
-bob.lee@email.com
- · (555) 987-6543 · New York, NY · linkedin.com/in/bob-lee
-
-Professional Summary
-
-Analytical and product-minded Data Scientist with 5 years at DataWorks building ML models and data products that drive business decisions. Experienced in end-to-end model lifecycle: problem framing, feature engineering, model development, deployment, monitoring, and cross-functional communication. Strong background in experimentation, causal inference, and production ML systems.
-
-Technical Skills
-
-Languages: Python, SQL, R
-
-ML & Libraries: scikit-learn, XGBoost, LightGBM, TensorFlow, PyTorch
-
-Data Engineering: Spark, Airflow, ETL pipelines, data warehousing (BigQuery / Redshift)
-
-MLOps & Deployment: Docker, Kubernetes, MLflow, AWS (S3, SageMaker)
-
-Statistics & Methods: A/B testing, causal inference, time series forecasting, survival analysis
-
-Tools: Jupyter, Git, Looker/Metabase, Tableau
-
-Professional Experience
-
-DataWorks — Data Scientist
-May 2020 - Present (5 years)
-
-Led development and deployment of a customer churn prediction model using gradient-boosted trees and engineered temporal features, reducing churn by an estimated 8% through targeted retention campaigns.
-
-Designed and executed randomized experiments (A/B tests) for pricing and onboarding flows; translated results into actionable product changes that increased trial-to-paid conversion by 6%.
-
-Built a scalable feature store and automated pipelines (Airflow + Spark) to enable reproducible model training and reduce feature extraction time by ~60%.
-
-Partnered with product and engineering teams to productionize demand-forecasting models for supply allocation; improved forecast accuracy (MAPE) by 18% year-over-year.
-
-Implemented model monitoring and drift detection (MLflow + custom alerts), enabling quicker retraining and reducing degraded-model incidents.
-
-Mentored junior data scientists and hosted monthly brown-bag sessions on interpretable ML and model evaluation.
-
-DataWorks — Analytics Contractor (earlier projects)
-
-Created interactive dashboards and KPI tracking for business stakeholders, leading to faster decision cycles for marketing and ops teams.
-
-Performed cohort analysis and lifetime value (LTV) modeling to support strategic prioritization of customer segments.
-
-Selected Projects
-
-Real-time Recommendation Service — Prototyped and helped deploy a lightweight recommendation microservice using embeddings and approximate nearest neighbors to increase engagement on personalized pages.
-Marketing Mix Modeling — Led a Bayesian regression analysis to quantify channel ROI and reallocate budget to higher-performing channels, improving efficiency.
-
-Education
-
-M.S., Data Science — University of Washington
-B.S., Statistics / Computer Science — Harvard
-Graduation years: 2024
-`;
-
-const resume3 =  `
-Carol Chen
-
-Product Manager — 4 years experience at InnovateX
-carol.chen@email.com
- · (555) 456-7890 · Seattle, WA · linkedin.com/in/carol-chen 
-
-Professional Summary
-
-Strategic and user-focused Product Manager with 4 years at InnovateX leading cross-functional teams to deliver impactful SaaS and mobile products. Experienced in product discovery, data-driven prioritization, and iterative delivery. Skilled at translating complex business goals into actionable product roadmaps that align user needs with company strategy.
-
-Core Skills
-
-Product Strategy & Roadmapping
-
-Agile / Scrum, Sprint Planning
-
-User Research, A/B Testing, Analytics (Amplitude, Mixpanel)
-
-Stakeholder Management & Cross-functional Leadership
-
-UX Collaboration & Design Thinking
-
-Metrics Definition & KPI Tracking
-
-Tools: Jira, Figma, Confluence, SQL, Notion, Tableau
-
-Professional Experience
-
-InnovateX — Product Manager
-July 2021 - Present (4 years)
-
-Owned the end-to-end lifecycle of a B2B analytics dashboard that scaled to 10k+ active enterprise users; improved retention by 15% through iterative design improvements.
-
-Defined and prioritized quarterly product roadmaps based on user feedback, data insights, and stakeholder input, balancing short-term delivery with long-term vision.
-
-Partnered with engineering and design teams to launch 12+ product features, including workflow automation tools that reduced customer setup time by 40%.
-
-Led rollout of an AI-powered recommendation feature by defining success metrics, coordinating across data science and engineering, and presenting results to leadership.
-
-Introduced a structured feedback loop using NPS and user interviews, leading to a 25% increase in customer satisfaction scores within one year.
-
-Collaborated with marketing and sales on go-to-market strategies, creating product briefs and demo scripts that supported successful launches.
-
-InnovateX — Associate Product Manager
-July 2020 - July 2021
-
-Conducted market research and competitor analysis to inform roadmap decisions for the company's new integrations platform.
-
-Managed backlog grooming and sprint planning for a team of 6 engineers, ensuring alignment on delivery timelines and dependencies.
-
-Analyzed feature adoption data and recommended refinements that improved onboarding flow completion rates by 18%.
-
-Selected Projects
-
-Automation Builder — Spearheaded MVP design and launch of a drag-and-drop workflow builder that became a key differentiator for enterprise clients.
-Customer Insights Dashboard — Collaborated with design and analytics to build a unified reporting experience, enabling customers to visualize ROI metrics in real time.
-
-Education
-
-B.S., Business Administration (Product Management Track) — UIUC
-Graduation: 2020
-`;
-
-/**
- * Test case 1: Basic generation
- * Demonstrates generating a draft from files and a question
- * User enters a question, uploads files, and the LLM generates a draft
- * Prompt variants:
- * 
- * question = 'Explain in 250 words or less why ZipRecruiter interests you.'
- * question = 'Explain in 250 words or less why you would be a good fit for this role. Google, software dev.'
- * 
- */
-export async function testBasicGeneration(): Promise<void> {
-    console.log('\n🧪 TEST CASE 1: Basic Generation');
-    console.log('=================================');
-
-    const files: File[] = [
-        { name: 'resume.txt', content: resume1 },
-        { name: 'coverletter.txt', content: 'Dear Hiring Manager,\nI am excited to apply for ' }
-    ];
-    const question = 'Write a cover letter for Microsoft software dev.';
-    const generator = new Generator();
-    const config = loadConfig();
-    const llm = new GeminiLLM(config);
-
-    const draft = await generator.generate(question, llm, files);
-    console.log('\n📝 Generated Draft:\n', draft);
-}
-
-/**
- * Test case 2: Feedback and revision
- * User is providing feedback and the LLM is updating the draft
- */
-export async function testFeedbackRevision(): Promise<void> {
-    console.log('\n🧪 TEST CASE 2: Feedback and Revision');
-    console.log('======================================');
-
-    const files: File[] = [
-        { name: 'resume.txt', content: resume2 }
-    ];
-    const question = 'Draft a LinkedIn summary.';
-    const generator = new Generator();
-    const config = loadConfig();
-    const llm = new GeminiLLM(config);
-
-    let draft = await generator.generate(question, llm, files);
-    console.log('\n📝 Initial Draft:\n', draft);
-
-    // Simulate user feedback and revision
-    const feedback = 'Make it more concise and highlight leadership.';
-    draft = await generator.feedback(llm, feedback);
-    console.log('\n📝 Revised Draft after Feedback:\n', draft);
-}
-
-/**
- * Test case 3: User edits LLM output and LLM reflects on the edit
- * Demonstrates the LLM analyzing user edits and providing feedback
- */
-export async function testUserEditReflection(): Promise<void> {
-    console.log('\n🧪 TEST CASE 3: User Edit Reflection');
-    console.log('======================================');
-
-    const files: File[] = [
-        { name: 'resume.txt', content: resume3 }
-    ];
-    const question = 'Write in 250 words or less why you would be a good fit for software engineer at Microsoft.';
-    const generator = new Generator();
-    const config = loadConfig();
-    const llm = new GeminiLLM(config);
-
-    let draft = await generator.generate(question, llm, files);
-    console.log('\n📝 Initial Draft:\n', draft);
-
-    // Simulate user editing the draft directly
-    const userEdit = draft + '\nI am passionate about user experience and cross-functional teamwork.';
-    console.log('\n✏️ User Edited Draft:\n', userEdit);
-
-    // LLM reflects on the user edit
-    await generator.updateFeedback(llm, draft, userEdit);
-}
-
-/**
- * Test case 4: Bad question prompt
- * Checks how the system handles a confusing/unspecific prompt
- */
-export async function testBadQuestionPrompt(): Promise<void> {
-    console.log('\n🧪 TEST CASE 4: Bad Question Prompt');
-    console.log('======================================');
-
-    const files: File[] = [
-        { name: 'resume.txt', content: resume1 }
-    ];
-    // Create an unspecific question
-    const question = 'Explain in detail: why you want this job, and how your experience fits.';
-    const generator = new Generator();
-    const config = loadConfig();
-    const llm = new GeminiLLM(config);
-
-    try {
-        const draft = await generator.generate(question, llm, files);
-        console.log('\n📝 Generated Draft (truncated):\n', draft.slice(0, 500) + (draft.length > 500 ? '... [truncated]' : ''));
-    } catch (error) {
-        console.error('❌ Error with long question prompt:', (error as Error).message);
-    }
-}
-
-/**
- * Test case 5: Faulty feedback
- * Checks how the LLM handles empty or invalid feedback
- */
-export async function testFaultyFeedback(): Promise<void> {
-    console.log('\n🧪 TEST CASE 5: Faulty Feedback and Revision');
-    console.log('======================================');
-
-    const files: File[] = [
-        { name: 'resume.txt', content: resume2 }
-    ];
-    const question = 'Draft a LinkedIn summary.';
-    const generator = new Generator();
-    const config = loadConfig();
-    const llm = new GeminiLLM(config);
-
-    let draft = await generator.generate(question, llm, files);
-    console.log('\n📝 Initial Draft:\n', draft);
-
-    // Simulate user feedback and revision
-    try {
-        const feedback = '32.';
-        draft = await generator.feedback(llm, feedback);
-        console.log('\n📝 Revised Draft after Feedback:\n', draft);
-    } catch (error) {
-        console.error('❌ Error with faulty feedback:', (error as Error).message);
-    }
-    
-}
-
-/**
- * Main function to run all test cases
- */
-async function main(): Promise<void> {
-    console.log('📝 Generator Test Suite');
-    console.log('========================\n');
-
-    try {
-        await testBasicGeneration();
-        await testFeedbackRevision();
-        await testUserEditReflection();
-        await testBadQuestionPrompt();
-        await testFaultyFeedback();
-        console.log('\n🎉 All generator test cases completed successfully!');
-    } catch (error) {
-        console.error('❌ Test error:', (error as Error).message);
-        process.exit(1);
-    }
-}
-
-// Run the tests if this file is executed directly
-if (require.main === module) {
-    main();
-}
+Deno.test("Generator Concept Tests", async (t) => {
+    // The ConceptGenerator class manages its state purely in-memory.
+    // Therefore, the `testDb` utility (which is for MongoDB setup/teardown) is not directly used here.
+    // Each test step will manually initialize the ConceptGenerator and MockLLM instances.
+
+    let generator: ConceptGenerator;
+    let mockLLM: MockLLM;
+
+    // --- Initial State Verification ---
+    await t.step("Initial state should be empty and not accepted", () => {
+        console.log("\n--- Test: Initial state ---");
+        generator = new ConceptGenerator(); // Initialize a fresh generator
+
+        console.log(`Expected: Draft is empty string`);
+        console.log(`Actual: Draft is "${generator.getDraft()}"`);
+        assertEquals(generator.getDraft(), "");
+
+        console.log(`Expected: Accepted status is false`);
+        console.log(`Actual: Accepted status is ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), false);
+
+        console.log(`Expected: Feedback history is empty`);
+        console.log(`Actual: Feedback history is ${JSON.stringify(generator.getFeedbackHistory())}`);
+        assertEquals(generator.getFeedbackHistory().length, 0);
+    });
+
+    // --- Action: generate ---
+    await t.step("Action: generate - successful generation with valid question", async () => {
+        console.log("\n--- Test: generate - success ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true); // Fulfills 'requires: question is a valid question'
+
+        const question = "Write a cover letter for a software engineer position at Google.";
+        const files: File[] = [{ name: "resume.txt", content: "My resume details..." }];
+        const expectedDraftContent = "This is a generated draft for the cover letter.";
+        mockLLM.setDefaultResponse(expectedDraftContent); // Mock LLM's response
+
+        console.log(`Calling generate with question: "${question}" and files. Mock LLM will deem question valid.`);
+        const result = await generator.generate(question, mockLLM, files);
+
+        // Verify effects
+        assertEquals(typeof result, 'object');
+        if ('error' in result) {
+            console.error(`❌ Error during generation: ${result.error}`);
+            throw new Error(`Generation unexpectedly failed: ${result.error}`);
+        }
+        console.log(`Effect: Draft is set. Expected: "${expectedDraftContent}", Actual: "${result.draft}"`);
+        assertEquals(result.draft, expectedDraftContent);
+        assertEquals(generator.getDraft(), expectedDraftContent);
+
+        console.log(`Effect: Accepted status is false. Expected: false, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), false);
+
+        console.log(`Effect: Feedback history is empty. Expected: 0 entries, Actual: ${generator.getFeedbackHistory().length} entries`);
+        assertEquals(generator.getFeedbackHistory().length, 0);
+
+        console.log(`Effect: Question input is stored. Expected: "${question}", Actual: "${generator.getQuestionInput()}"`);
+        assertEquals(generator.getQuestionInput(), question);
+        console.log(`✅ Draft generated successfully.`);
+    });
+
+    await t.step("Action: generate - fails with invalid question", async () => {
+        console.log("\n--- Test: generate - invalid question ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(false); // Violates 'requires: question is a valid question'
+
+        const question = "What is the meaning of life?";
+        const files: File[] = [];
+
+        console.log(`Attempting to generate with invalid question: "${question}". Mock LLM will deem question invalid.`);
+        const result = await generator.generate(question, mockLLM, files);
+
+        // Verify that an error is returned and no state changes
+        assertEquals(typeof result, 'object');
+        if (!('error' in result)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error for invalid question.");
+        }
+        console.log(`Effect: Returns error. Expected: "The input is not a valid question.", Actual: "${result.error}"`);
+        assertEquals(result.error, "The input is not a valid question.");
+
+        console.log(`Effect: Draft remains empty. Expected: "", Actual: "${generator.getDraft()}"`);
+        assertEquals(generator.getDraft(), ""); // No draft should be set
+
+        console.log(`Effect: Accepted status remains false. Expected: false, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), false);
+        console.log(`✅ Generation failed as expected due to invalid question.`);
+    });
+
+    await t.step("Action: generate - fails if already accepted draft exists", async () => {
+        console.log("\n--- Test: generate - accepted draft exists ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        const firstQuestion = "Generate a summary.";
+        const firstDraft = "First draft content.";
+        mockLLM.setDefaultResponse(firstDraft);
+
+        await generator.generate(firstQuestion, mockLLM, []);
+        generator.accept(); // Set draft to accepted
+
+        console.log(`Initial draft generated and accepted. Attempting to generate a new draft.`);
+        const secondQuestion = "Write a new item.";
+        const generateResult = await generator.generate(secondQuestion, mockLLM, []);
+
+        assertEquals(typeof generateResult, 'object');
+        if (!('error' in generateResult)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error.");
+        }
+        console.log(`Effect: Returns error. Expected: "Cannot generate new draft after current draft has been accepted.", Actual: "${generateResult.error}"`);
+        assertEquals(generateResult.error, "Cannot generate new draft after current draft has been accepted.");
+        console.log(`Effect: Previous draft and accepted status remain. Draft: "${generator.getDraft()}", Accepted: ${generator.isAccepted()}`);
+        assertEquals(generator.getDraft(), firstDraft);
+        assertEquals(generator.isAccepted(), true);
+        console.log(`✅ Generation failed as expected because a draft was already accepted.`);
+    });
+
+
+    // --- Action: accept ---
+    await t.step("Action: accept - successful acceptance", async () => {
+        console.log("\n--- Test: accept - success ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        const draftContent = "This is the draft to be accepted.";
+        mockLLM.setDefaultResponse(draftContent);
+        await generator.generate("Generate a summary.", mockLLM, []); // Fulfills 'requires: question to exist'
+        const initialDraft = generator.getDraft();
+
+        console.log(`Current draft before accepting: "${initialDraft}". Accepted status: ${generator.isAccepted()}`);
+        const result = generator.accept(); // Fulfills 'requires: draft status is not accepted'
+
+        // Verify effects
+        assertEquals(typeof result, 'object');
+        if ('error' in result) {
+            console.error(`❌ Error during acceptance: ${result.error}`);
+            throw new Error(`Acceptance unexpectedly failed: ${result.error}`);
+        }
+        console.log(`Effect: Accepted status is true. Expected: true, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), true);
+
+        console.log(`Effect: Returns the draft. Expected: "${initialDraft}", Actual: "${result.draft}"`);
+        assertEquals(result.draft, initialDraft);
+        console.log(`✅ Draft accepted successfully.`);
+    });
+
+    await t.step("Action: accept - fails if no draft exists", () => {
+        console.log("\n--- Test: accept - no draft ---");
+        generator = new ConceptGenerator(); // No generate action called, so no question/draft
+
+        console.log("Attempting to accept without a generated draft.");
+        const result = generator.accept(); // Violates 'requires: question to exist'
+
+        // Verify that an error is returned and no state changes
+        assertEquals(typeof result, 'object');
+        if (!('error' in result)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error for no draft.");
+        }
+        console.log(`Effect: Returns error. Expected: "No question or draft exists to accept.", Actual: "${result.error}"`);
+        assertEquals(result.error, "No question or draft exists to accept.");
+
+        console.log(`Effect: Accepted status remains false. Expected: false, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), false);
+        console.log(`✅ Acceptance failed as expected due to no existing draft.`);
+    });
+
+    await t.step("Action: accept - fails if already accepted", async () => {
+        console.log("\n--- Test: accept - already accepted ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        const draftContent = "Already accepted content.";
+        mockLLM.setDefaultResponse(draftContent);
+        await generator.generate("Generate text.", mockLLM, []);
+        generator.accept(); // First acceptance makes it accepted
+
+        console.log("Attempting to accept an already accepted draft.");
+        const result = generator.accept(); // Second acceptance, violates 'requires: draft status is not accepted'
+
+        // Verify that an error is returned and state remains unchanged
+        assertEquals(typeof result, 'object');
+        if (!('error' in result)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error for already accepted draft.");
+        }
+        console.log(`Effect: Returns error. Expected: "Draft is already accepted.", Actual: "${result.error}"`);
+        assertEquals(result.error, "Draft is already accepted.");
+
+        console.log(`Effect: Accepted status remains true. Expected: true, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), true); // Should remain accepted
+        console.log(`✅ Acceptance failed as expected because the draft was already accepted.`);
+    });
+
+    // --- Action: edit ---
+    await t.step("Action: edit - successful edit and feedback history update", async () => {
+        console.log("\n--- Test: edit - success ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        const originalQuestion = "Write a short bio.";
+        const initialDraftContent = "This is the initial, slightly verbose bio.";
+        mockLLM.setDefaultResponse(initialDraftContent);
+        await generator.generate(originalQuestion, mockLLM, []); // Fulfills 'requires: draft already exists'
+        const newDraft = "This is the edited bio, now more concise.";
+        const inferredFeedback = ["Made it more concise."];
+        mockLLM.setEditFeedbackResponse(JSON.stringify(inferredFeedback)); // Mock LLM inferring feedback
+
+        console.log(`Original draft: "${initialDraftContent}"`);
+        console.log(`New draft for editing: "${newDraft}"`);
+        const result = await generator.edit(mockLLM, newDraft); // Fulfills 'requires: draft status is not accepted'
+
+        // Verify effects
+        assertEquals(typeof result, 'object');
+        if ('error' in result) {
+            console.error(`❌ Error during edit: ${result.error}`);
+            throw new Error(`Edit unexpectedly failed: ${result.error}`);
+        }
+        console.log(`Effect: Draft is replaced. Expected: "${newDraft}", Actual: "${generator.getDraft()}"`);
+        assertEquals(generator.getDraft(), newDraft);
+
+        console.log(`Effect: Accepted status remains false. Expected: false, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), false);
+
+        console.log(`Effect: Feedback history updated with inferred feedback.`);
+        console.log(`Expected: ${JSON.stringify(inferredFeedback)}, Actual: ${JSON.stringify(generator.getFeedbackHistory())}`);
+        assertArrayIncludes(generator.getFeedbackHistory(), inferredFeedback);
+        console.log(`✅ Draft edited successfully and feedback history updated.`);
+    });
+
+    await t.step("Action: edit - fails if no draft exists", async () => {
+        console.log("\n--- Test: edit - no draft ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+
+        console.log("Attempting to edit without a generated draft.");
+        const result = await generator.edit(mockLLM, "Some new text."); // Violates 'requires: draft already exists'
+
+        // Verify that an error is returned and no state changes
+        assertEquals(typeof result, 'object');
+        if (!('error' in result)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error for no draft.");
+        }
+        console.log(`Effect: Returns error. Expected: "No draft exists to edit.", Actual: "${result.error}"`);
+        assertEquals(result.error, "No draft exists to edit.");
+
+        console.log(`Effect: Draft remains empty. Expected: "", Actual: "${generator.getDraft()}"`);
+        assertEquals(generator.getDraft(), "");
+        console.log(`✅ Edit failed as expected due to no existing draft.`);
+    });
+
+    await t.step("Action: edit - fails if accepted", async () => {
+        console.log("\n--- Test: edit - accepted draft ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        const draftContent = "Accepted draft content.";
+        mockLLM.setDefaultResponse(draftContent);
+        await generator.generate("Generate text.", mockLLM, []);
+        generator.accept(); // Set draft to accepted
+
+        console.log("Attempting to edit an accepted draft.");
+        const result = await generator.edit(mockLLM, "Some new text."); // Violates 'requires: draft status is not accepted'
+
+        // Verify that an error is returned and state remains unchanged
+        assertEquals(typeof result, 'object');
+        if (!('error' in result)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error for accepted draft.");
+        }
+        console.log(`Effect: Returns error. Expected: "Cannot edit an accepted draft.", Actual: "${result.error}"`);
+        assertEquals(result.error, "Cannot edit an accepted draft.");
+
+        console.log(`Effect: Draft remains unchanged. Expected: "${draftContent}", Actual: "${generator.getDraft()}"`);
+        assertEquals(generator.getDraft(), draftContent);
+        console.log(`Effect: Accepted status remains true. Expected: true, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), true);
+        console.log(`✅ Edit failed as expected because the draft was already accepted.`);
+    });
+
+    // --- Action: feedback ---
+    await t.step("Action: feedback - successful regeneration with valid feedback", async () => {
+        console.log("\n--- Test: feedback - success ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        const initialDraftContent = "This is the initial paragraph.";
+        mockLLM.setDefaultResponse(initialDraftContent);
+        await generator.generate("Write a paragraph.", mockLLM, []); // Fulfills 'requires: draft has not yet been accepted'
+        const feedbackComment = "Make it more professional.";
+        const regeneratedText = "This is the more professional paragraph.";
+        mockLLM.setFeedbackValidation(true); // Fulfills 'requires: feedback to be a valid feedback'
+        mockLLM.setRegeneratedResponse(regeneratedText); // Mock LLM's response for regeneration
+
+        console.log(`Initial draft: "${initialDraftContent}"`);
+        console.log(`Providing feedback: "${feedbackComment}"`);
+        const result = await generator.feedback(mockLLM, feedbackComment);
+
+        // Verify effects
+        assertEquals(typeof result, 'object');
+        if ('error' in result) {
+            console.error(`❌ Error during feedback: ${result.error}`);
+            throw new Error(`Feedback unexpectedly failed: ${result.error}`);
+        }
+        console.log(`Effect: Draft is regenerated. Expected: "${regeneratedText}", Actual: "${result.draft}"`);
+        assertEquals(result.draft, regeneratedText);
+        assertEquals(generator.getDraft(), regeneratedText);
+
+        console.log(`Effect: Accepted status remains false. Expected: false, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), false);
+
+        console.log(`Effect: Feedback history includes new feedback. Expected: ["${feedbackComment}"], Actual: ${JSON.stringify(generator.getFeedbackHistory())}`);
+        assertArrayIncludes(generator.getFeedbackHistory(), [feedbackComment]);
+        console.log(`✅ Draft regenerated successfully with valid feedback.`);
+    });
+
+    await t.step("Action: feedback - fails if no draft exists", async () => {
+        console.log("\n--- Test: feedback - no draft ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+
+        console.log("Attempting to provide feedback without a generated draft.");
+        const result = await generator.feedback(mockLLM, "Improve this."); // Violates 'requires: draft exists'
+
+        // Verify that an error is returned and no state changes
+        assertEquals(typeof result, 'object');
+        if (!('error' in result)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error for no draft.");
+        }
+        console.log(`Effect: Returns error. Expected: "No draft exists to provide feedback on.", Actual: "${result.error}"`);
+        assertEquals(result.error, "No draft exists to provide feedback on.");
+
+        console.log(`Effect: Draft remains empty. Expected: "", Actual: "${generator.getDraft()}"`);
+        assertEquals(generator.getDraft(), "");
+        console.log(`✅ Feedback failed as expected due to no existing draft.`);
+    });
+
+    await t.step("Action: feedback - fails if accepted", async () => {
+        console.log("\n--- Test: feedback - accepted draft ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        const draftContent = "Accepted draft content.";
+        mockLLM.setDefaultResponse(draftContent);
+        await generator.generate("Generate text.", mockLLM, []);
+        generator.accept(); // Set draft to accepted
+
+        console.log("Attempting to provide feedback on an accepted draft.");
+        const result = await generator.feedback(mockLLM, "Improve this."); // Violates 'requires: draft has not yet been accepted'
+
+        // Verify that an error is returned and state remains unchanged
+        assertEquals(typeof result, 'object');
+        if (!('error' in result)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error for accepted draft.");
+        }
+        console.log(`Effect: Returns error. Expected: "Cannot provide feedback on an accepted draft.", Actual: "${result.error}"`);
+        assertEquals(result.error, "Cannot provide feedback on an accepted draft.");
+
+        console.log(`Effect: Draft remains unchanged. Expected: "${draftContent}", Actual: "${generator.getDraft()}"`);
+        assertEquals(generator.getDraft(), draftContent);
+        console.log(`Effect: Accepted status remains true. Expected: true, Actual: ${generator.isAccepted()}`);
+        assertEquals(generator.isAccepted(), true);
+        console.log(`✅ Feedback failed as expected because the draft was already accepted.`);
+    });
+
+    await t.step("Action: feedback - fails with invalid feedback", async () => {
+        console.log("\n--- Test: feedback - invalid feedback ---");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        const initialDraftContent = "Some draft.";
+        mockLLM.setDefaultResponse(initialDraftContent);
+        await generator.generate("Generate text.", mockLLM, []);
+        mockLLM.setFeedbackValidation(false); // Violates 'requires: feedback to be a valid feedback'
+        const invalidFeedback = "What is your favorite color?";
+
+        console.log(`Attempting to provide invalid feedback: "${invalidFeedback}". Mock LLM will deem feedback invalid.`);
+        const result = await generator.feedback(mockLLM, invalidFeedback);
+
+        // Verify that an error is returned and no state changes (other than error return)
+        assertEquals(typeof result, 'object');
+        if (!('error' in result)) {
+            console.error("❌ Expected an error, but no error was returned.");
+            throw new Error("Expected an error for invalid feedback.");
+        }
+        console.log(`Effect: Returns error. Expected: "Please submit valid actionable feedback.", Actual: "${result.error}"`);
+        assertEquals(result.error, "Please submit valid actionable feedback.");
+
+        console.log(`Effect: Draft remains unchanged. Expected: "${initialDraftContent}", Actual: "${generator.getDraft()}"`);
+        assertEquals(generator.getDraft(), initialDraftContent);
+        console.log(`Effect: Feedback history remains empty. Expected: 0 entries, Actual: ${generator.getFeedbackHistory().length} entries`);
+        assertEquals(generator.getFeedbackHistory().length, 0);
+        console.log(`✅ Feedback failed as expected due to invalid feedback.`);
+    });
+
+    // --- Principle Test ---
+    await t.step("Principle: After generation, feedback regenerates output, or user edits/copies.", async () => {
+        console.log("\n--- Principle Test: LLM Generation -> Feedback/Regeneration, or Edit, or Accept ---");
+        // This test demonstrates the core workflow described in the principle:
+        // 1. Initial generation of a draft.
+        // 2. Then, the user can either provide feedback (leading to regeneration),
+        // 3. Or edit the draft directly,
+        // 4. Or accept the draft.
+
+        // Setup for initial generation (common to all scenarios)
+        const initialQuestion = "Draft a LinkedIn summary for a junior software developer.";
+        const initialFiles: File[] = [{ name: "skills.txt", content: "JavaScript, TypeScript, React" }];
+        const initialDraftContent = "This is the initial draft for a LinkedIn summary (v1).";
+
+        // --- Scenario A: User provides feedback and output regenerates ---
+        console.log("\nScenario A: User provides feedback, system regenerates.");
+        generator = new ConceptGenerator();
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        mockLLM.setFeedbackValidation(true);
+        mockLLM.setDefaultResponse(initialDraftContent);
+
+        console.log(`   Step A.1: Call generate action for question: "${initialQuestion}"`);
+        const generateResultA = await generator.generate(initialQuestion, mockLLM, initialFiles);
+        if ('error' in generateResultA) { throw new Error(`Generation failed: ${generateResultA.error}`); }
+        assertEquals(generator.getDraft(), initialDraftContent, "Scenario A: Initial draft mismatch.");
+        assertEquals(generator.isAccepted(), false, "Scenario A: Draft should not be accepted yet.");
+        console.log(`     Initial draft generated: "${generator.getDraft()}"`);
+
+        const feedbackComment = "Make it more engaging and highlight teamwork.";
+        const regeneratedDraftContent = "This is the engaging and teamwork-focused summary (v2).";
+        mockLLM.setRegeneratedResponse(regeneratedDraftContent); // Mock LLM's response for regeneration
+
+        console.log(`   Step A.2: Call feedback action with comment: "${feedbackComment}"`);
+        const feedbackResult = await generator.feedback(mockLLM, feedbackComment);
+        if ('error' in feedbackResult) { throw new Error(`Feedback failed: ${feedbackResult.error}`); }
+        assertEquals(generator.getDraft(), regeneratedDraftContent, "Scenario A: Draft should be regenerated.");
+        assertArrayIncludes(generator.getFeedbackHistory(), [feedbackComment], "Scenario A: Feedback should be recorded.");
+        assertEquals(generator.isAccepted(), false, "Scenario A: Draft should still not be accepted.");
+        console.log(`     Draft regenerated based on feedback: "${generator.getDraft()}"`);
+        console.log(`     Feedback history: ${JSON.stringify(generator.getFeedbackHistory())}`);
+        console.log(`   Scenario A successfully demonstrated: Generate -> Feedback -> Regenerate.`);
+
+
+        // --- Scenario B: User edits the draft ---
+        console.log("\nScenario B: User edits the draft manually.");
+        generator = new ConceptGenerator(); // New instance for independent scenario
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        mockLLM.setDefaultResponse(initialDraftContent); // For initial generation
+        const inferredFeedbackFromEdit = ["Refined wording."];
+        mockLLM.setEditFeedbackResponse(JSON.stringify(inferredFeedbackFromEdit)); // Mock LLM inferring feedback from edit
+
+        console.log(`   Step B.1: Call generate action for question: "${initialQuestion}"`);
+        const generateResultB = await generator.generate(initialQuestion, mockLLM, initialFiles);
+        if ('error' in generateResultB) { throw new Error(`Generation failed: ${generateResultB.error}`); }
+        assertEquals(generator.getDraft(), initialDraftContent, "Scenario B: Initial draft mismatch.");
+        console.log(`     Initial draft generated: "${generator.getDraft()}"`);
+
+        const editedDraftContent = "This is the refined LinkedIn summary after user's manual edits (v2).";
+        console.log(`   Step B.2: Call edit action with new draft: "${editedDraftContent}"`);
+        const editResult = await generator.edit(mockLLM, editedDraftContent);
+        if ('error' in editResult) { throw new Error(`Edit failed: ${editResult.error}`); }
+        assertEquals(generator.getDraft(), editedDraftContent, "Scenario B: Draft should be updated by edit.");
+        assertArrayIncludes(generator.getFeedbackHistory(), inferredFeedbackFromEdit, "Scenario B: Inferred feedback from edit should be recorded.");
+        assertEquals(generator.isAccepted(), false, "Scenario B: Draft should still not be accepted.");
+        console.log(`     Draft edited: "${generator.getDraft()}"`);
+        console.log(`     Feedback history after edit: ${JSON.stringify(generator.getFeedbackHistory())}`);
+        console.log(`   Scenario B successfully demonstrated: Generate -> Edit.`);
+
+
+        // --- Scenario C: User accepts the draft ---
+        console.log("\nScenario C: User accepts the draft.");
+        generator = new ConceptGenerator(); // New instance for independent scenario
+        mockLLM = new MockLLM();
+        mockLLM.setQuestionValidation(true);
+        mockLLM.setDefaultResponse(initialDraftContent); // For initial generation
+
+        console.log(`   Step C.1: Call generate action for question: "${initialQuestion}"`);
+        const generateResultC = await generator.generate(initialQuestion, mockLLM, initialFiles);
+        if ('error' in generateResultC) { throw new Error(`Generation failed: ${generateResultC.error}`); }
+        assertEquals(generator.getDraft(), initialDraftContent, "Scenario C: Initial draft mismatch.");
+        console.log(`     Initial draft generated: "${generator.getDraft()}"`);
+
+        console.log(`   Step C.2: Call accept action.`);
+        const acceptResult = generator.accept();
+        if ('error' in acceptResult) { throw new Error(`Acceptance failed: ${acceptResult.error}`); }
+        assertEquals(generator.isAccepted(), true, "Scenario C: Draft should be accepted.");
+        assertEquals(generator.getDraft(), initialDraftContent, "Scenario C: Accepted draft content should match original.");
+        console.log(`     Draft accepted. Accepted status: ${generator.isAccepted()}`);
+        console.log(`   Scenario C successfully demonstrated: Generate -> Accept.`);
+    });
+});
 ```
