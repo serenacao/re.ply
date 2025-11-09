@@ -1,6 +1,7 @@
 import { testDb } from "@utils/database.ts";
 import UserAuthenticationConcept from "./UserAuthenticationConcept.ts";
-import { assertEquals, assertRejects } from "jsr:@std/assert";
+import { assertEquals, assertRejects, assert } from "jsr:@std/assert";
+import { assertEqual } from "../../engine/test/helpers.ts";
 
 Deno.test("UserAuthenticationConcept tests", async (t) => {
   const [db, client] = await testDb();
@@ -52,15 +53,15 @@ Deno.test("UserAuthenticationConcept tests", async (t) => {
 
     // Pre-condition: User must be registered first
     const { user: charlie } = await concept.register({ username, password });
-    const charlieId = charlie._id;
     
     // Action: authenticate(username, password)
-    const { user: authenticatedCharlie } = await concept.authenticate({ username, password });
-    const authenticatedCharlieId = authenticatedCharlie._id;
+    const { token: authenticatedCharlieToken } = await concept.authenticate({ username, password });
+    const { userId : id} = await concept.verifyToken({token: authenticatedCharlieToken});
 
     // Assert Effect: The authenticated user ID matches the registered user ID
     // This confirms the 'effects: returns user' condition is met for a valid user.
-    assertEquals(authenticatedCharlieId, charlieId, "Authenticated user ID should match the registered user's ID.");
+    assert(authenticatedCharlieToken, "Token should not be null.");
+    assertEqual(id, charlie._id, 'Ids should be equal');
   });
 
   await t.step("authenticate: fails with incorrect password (requires)", async () => {
@@ -103,21 +104,29 @@ Deno.test("UserAuthenticationConcept tests", async (t) => {
     console.log(`TRACE: Attempting to register user '${username}'...`);
     const { user: eve } = await concept.register({ username, password });
     const eveId = eve._id;
-    assertEquals(typeof eveId, "string", "Register action should return a user ID.");
+    assert(eveId, "Register action should return a valid token.");
     console.log(`TRACE: Successfully registered user Eve with ID: ${eveId}`);
 
     // 2. Authenticate with the same username and password (demonstrates 'authenticate' action's purpose)
     console.log(`TRACE: Attempting to authenticate user '${username}'...`);
-    const { user: authenticatedEve } = await concept.authenticate({ username, password });
-    const authenticatedEveId = authenticatedEve._id;
-    assertEquals(typeof authenticatedEveId, "string", "Authenticate action should return a user ID.");
-    console.log(`TRACE: Successfully authenticated user Eve with ID: ${authenticatedEveId}`);
+    const { token: authenticatedEveToken } = await concept.authenticate({ username, password });
+    assert(typeof authenticatedEveToken, "Authenticate action should return a token.");
+    console.log(`TRACE: Successfully authenticated user Eve with username: ${username}`);
 
     // 3. Verify they are treated as the same user (IDs match, fulfilling "treated each time as the same user")
-    assertEquals(authenticatedEveId, eveId, "Authenticated user ID should match registered user ID, proving 'same user' principle.");
+    const authenticatedEveId = await concept.verifyToken({ token: authenticatedEveToken })
+    assertEquals(authenticatedEveId.userId, eveId, "Authenticated user ID should match registered user ID, proving 'same user' principle.");
     console.log("TRACE: Principle fulfilled: Eve successfully registered and authenticated as the same user.");
   });
-  } finally {
+
+  await t.step('closing connection', async () => {
+    console.log("Closing MongoDB client...");
     await client.close();
+    console.log("Closed successfully ✅");
+  })
+  } finally {
+    console.log("Closing MongoDB client...");
+    await client.close();
+    console.log("Closed successfully ✅");
   }
 });

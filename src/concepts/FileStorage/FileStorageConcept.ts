@@ -7,7 +7,7 @@ const PREFIX = "FileStorage" + ".";
 
 // Generic types of this concept
 type User = ID;
-export type FileID = ID; // Renaming File to FileID to avoid conflict with the interface name below, as 'File' is also a browser API type.
+export type FileID = ID; // Renaming File to fileId to avoid conflict with the interface name below, as 'File' is also a browser API type.
 
 /**
  * Interface representing a file stored by the concept.
@@ -52,7 +52,7 @@ export default class FileStorageConcept {
    */
   async upload(
     { user, name, content }: { user: User; name: string; content: string },
-  ): Promise<FileID> {
+  ): Promise<{fileId: FileID}> {
     // Requires: name does not already exist in user's Files
     const existingFile = await this.filesCollection.findOne({ userId: user, name: name });
     if (existingFile) {
@@ -68,7 +68,7 @@ export default class FileStorageConcept {
     };
 
     await this.filesCollection.insertOne(newFile);
-    return newFileId; // Effect: add new File to user's Files, return its ID
+    return{fileId: newFileId}; // Effect: add new File to user's Files, return its ID
   }
 
   /**
@@ -80,7 +80,7 @@ export default class FileStorageConcept {
    */
   async remove(
     { user, name }: { user: User; name: string },
-  ): Promise<FileID> {
+  ): Promise<{fileId: FileID}> {
     // Requires: name does exist in user's Files
     const existingFile = await this.filesCollection.findOne({ userId: user, name: name });
     if (!existingFile) {
@@ -88,7 +88,7 @@ export default class FileStorageConcept {
     }
 
     await this.filesCollection.deleteOne({ _id: existingFile._id });
-    return existingFile._id; // Effect: remove file, return its ID
+    return {fileId: existingFile._id}; // Effect: remove file, return its ID
   }
 
   /**
@@ -103,7 +103,7 @@ export default class FileStorageConcept {
    */
   async rename(
     { user, name, newName }: { user: User; name: string; newName: string },
-  ): Promise<FileID> {
+  ): Promise<{fileId: FileID}> {
     // Requires: name does exist in user's Files
     const fileToRename = await this.filesCollection.findOne({ userId: user, name: name });
     if (!fileToRename) {
@@ -120,7 +120,7 @@ export default class FileStorageConcept {
       { _id: fileToRename._id },
       { $set: { name: newName } },
     );
-    return fileToRename._id; // Effect: replaces name with newName, return its ID
+    return {fileId: fileToRename._id}; // Effect: replaces name with newName, return its ID
   }
 
   /**
@@ -130,10 +130,10 @@ export default class FileStorageConcept {
    * @requires user exists (assumed)
    * @effects return all Files under User
    */
-  async _files({ user }: { user: User }): Promise<FileDocument[]> {
+  async files({ user }: { user: User }): Promise<{files: FileDocument[]}> {
     // Requires: user exists (assumed) - no explicit check needed as per prompt's assumption,
     // an empty array will be returned if the user has no files or does not exist.
     const userFiles = await this.filesCollection.find({ userId: user }).toArray();
-    return userFiles; // Effect: return all Files under User
+    return {files: userFiles}; // Effect: return all Files under User
   }
 }

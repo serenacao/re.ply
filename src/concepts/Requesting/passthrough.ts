@@ -26,11 +26,22 @@
 
 export const inclusions: Record<string, string> = {
   // Feel free to delete these example inclusions
-  "/api/LikertSurvey/_getSurveyQuestions": "this is a public query",
-  "/api/LikertSurvey/_getSurveyResponses": "responses are public",
-  "/api/LikertSurvey/_getRespondentAnswers": "answers are visible",
-  "/api/LikertSurvey/submitResponse": "allow anyone to submit response",
-  "/api/LikertSurvey/updateResponse": "allow anyone to update their response",
+  "/api/Generator/isItem": "this is a private method, but also does not expose user info",
+  "/api/Generator/isQuestion": "this is a private method, but also does not expose user info",
+  "/api/Generator/isFeedback": "this is a private method, but also does not expose user info",
+  "/api/Generator/regenerateWithFeedback": "is not user specific",
+  "/api/Generator/updateFeedbackFromEdit": "is not user specific",
+  "/api/Generator/createFeedbackPrompt": "does not expose internal user info",
+  "/api/Generator/createPrompt": "is not user specific",
+  "/api/Generator/getDraft": "does not expose user info",
+  "/api/Generator/isAccepted": "does not expose user info",
+  "/api/Generator/getFeedbackHistory": "does not expose user info",
+  "/api/Generator/getquestion": "does not expose user info",
+  "/api/UserAuthentication/register": "anyone should be allowed to register",
+  "/api/UserAuthentication/authenticate": "anyone should be allowed to try to authenticate",
+  "/api/UserAuthentication/verifyToken": "anyone can try to verify a token",
+   "/api/llm/executeLLM": "endpoint is not openly available to public nor is it helpful",
+
 };
 
 /**
@@ -45,6 +56,16 @@ export const inclusions: Record<string, string> = {
 
 export const exclusions: Array<string> = [
   // Feel free to delete these example exclusions
-  "/api/LikertSurvey/createSurvey",
-  "/api/LikertSurvey/addQuestion",
+  "/api/FileStorage/upload",
+  "/api/FileStorage/remove",
+  "/api/FileStorage/rename",
+  "/api/FileStorage/files",
+  "/api/Generator/updateInput",
+  "/api/Generator/generate",
+  "/api/Generator/edit",
+  "/api/Generator/feedback",
+  "/api/JobTracker/add",
+  " /api/JobTracker/remove",
+  "/api/JobTracker/update",
+  "/api/JobTracker/getJobs",
 ];

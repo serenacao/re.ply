@@ -10,12 +10,13 @@
     - a draft String
     - an accepted Flag
     - a set of feedbackHistory String
+    - an llm LLM
 
 - actions
     - updateInput(files: File[]): 
         - effect: updates files used to generate draft
 
-    - async generate(question: String, llm: LLM, files: File[]): (draft: String)
+    - async generate(question: String, files: File[]): (draft: String)
         - requires question is a valid question
         - effects generate a draft to the question using the files provided with accepted FALSE 
 
@@ -23,10 +24,10 @@
         - requires question to exist and draft status is not accepted
         - effects set draft status to accepted
 
-    - edit(llm: LLM, newDraft: String):
+    - edit(newDraft: String):
         - requires draft status is not accepted, draft already exists 
         - effects replaces current draft with newDraft, adds to feedback history 
 
-    - async feedback(llm: LLM, feedback: string): (draft: String)
+    - async feedback(feedback: string): (draft: String)
         - requires feedback to be a valid feedback for a draft, draft has not yet been accepted
         - effects adds to feedback history, generate new text with updated content based off all feedback so far and current files

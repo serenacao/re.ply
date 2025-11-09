@@ -2,9 +2,19 @@
 import { Collection, Db } from "npm:mongodb";
 import { Empty, ID } from "@utils/types.ts";
 import { freshID } from "@utils/database.ts";
+import { create, verify, getNumericDate } from "https://deno.land/x/djwt@v3.0.1/mod.ts"
 
 // Declare collection prefix, use concept name
 const PREFIX = "UserAuthentication" + ".";
+const SECRET_WORD = Deno.env.get("SECRET_WORD") ?? "super_secret_word";
+const SECRET_KEY = await crypto.subtle.importKey(
+  "raw",
+  new TextEncoder().encode(SECRET_WORD),
+  { name: "HMAC", hash: "SHA-256" },
+  false,
+  ["sign", "verify"],
+);
+
 
 /**
  * Type alias for the ID of a User.
@@ -79,20 +89,45 @@ export default class UserAuthenticationConcept {
      * @param {string} password - The password provided for authentication.
      * @returns {{ user: User }} On successful authentication, returns the ID of the authenticated user.
      * @requires user with username and password to exist
-     * @effects returns user
+     * @effects returns a token that expires in 24 hours
      */
     async authenticate(
         { username, password }: { username: string, password: string },
-    ): Promise<{ user: User }> {
+    ): Promise<{ token: string }> {
         // Find a user that matches both username and password
         const authenticatedUser = await this.users.findOne({ username, password });
 
-        if (authenticatedUser) {
-            // Authentication successful, return the user's ID
-            return { user: authenticatedUser };
-        } else {
-            // Authentication failed
+        if (!authenticatedUser) {
             throw new Error("Invalid username or password");
         }
+
+        const token = await create({ alg: "HS256", typ: "JWT" }, {
+        userId: authenticatedUser._id,
+        exp: getNumericDate(60 * 60 * 24), // 24h expiration
+        }, SECRET_KEY)
+
+        return {token: token}
+
+        // if (authenticatedUser) {
+        //     // Authentication successful, return the user's ID
+        //     return { user: authenticatedUser };
+        // } else {
+        //     // Authentication failed
+        //     throw new Error("Invalid username or password");
+        // }
     }
+
+    /**
+     * 
+     * @param {string} token - The token provided for authentication
+     * @returns {{token: string}}
+     */
+    async verifyToken({ token }: { token: string }): Promise<{ userId: UserID }> {
+    try {
+      const payload = await verify(token, SECRET_KEY)
+      return {userId: payload.userId as UserID};
+    } catch {
+      throw new Error('Token is invalid!');
+    }
+  }
 }
