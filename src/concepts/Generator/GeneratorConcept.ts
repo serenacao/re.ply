@@ -34,7 +34,6 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
      * **effects** generate a draft to the question using the files provided with accepted FALSE
      */
     async generate({question, files} : {question: string, files: File[]}): Promise<{draft: string}> {
-        console.log('question on backend', question);
 
         if (this.accepted) {
             throw new Error("Cannot generate new draft after current draft has been accepted.");

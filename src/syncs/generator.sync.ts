@@ -20,7 +20,8 @@ import { verifyTokens } from "@utils/sync_utils.ts";
     
     // The where clause transforms incoming frames
    where: async (frames) => {
-      console.log('frames', frames);
+
+    
     // Pick the token from each frame
     const verified = await frames.queryAsync(
       // Function
@@ -30,7 +31,8 @@ import { verifyTokens } from "@utils/sync_utils.ts";
       // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
       { userId: Symbol("userId") }
     );
-    console.log('verified user', verified)
+
+    
     return verified;
   },
   
@@ -71,7 +73,8 @@ export const GenerateRequest: Sync = ({
     
     // The where clause transforms incoming frames
    where: async (frames) => {
-      console.log('frames', frames);
+
+    
     // Pick the token from each frame
     const verified = await frames.queryAsync(
       // Function
@@ -81,7 +84,8 @@ export const GenerateRequest: Sync = ({
       // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
       { userId: Symbol("userId") }
     );
-    console.log('verified user', verified)
+
+    
     return verified;
   },
   
@@ -121,7 +125,9 @@ export const GenerateRequest: Sync = ({
     
     // The where clause transforms incoming frames
    where: async (frames) => {
-      console.log('frames', frames);
+
+    
+
     // Pick the token from each frame
     const verified = await frames.queryAsync(
       // Function
@@ -131,7 +137,8 @@ export const GenerateRequest: Sync = ({
       // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
       { userId: Symbol("userId") }
     );
-    console.log('verified user', verified)
+
+    
     return verified;
   },
   
@@ -170,7 +177,8 @@ export const FeedbackRequest: Sync = ({
     
     // The where clause transforms incoming frames
    where: async (frames) => {
-      console.log('frames', frames);
+
+    
     // Pick the token from each frame
     const verified = await frames.queryAsync(
       // Function
@@ -180,7 +188,8 @@ export const FeedbackRequest: Sync = ({
       // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
       { userId: Symbol("userId") }
     );
-    console.log('verified user', verified)
+
+    
     return verified;
   },
   

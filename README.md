@@ -1,6 +1,18 @@
-# 6.104 Assignment 4: Implementing Concepts
+# 6.104 Assignment 4c
 
-In this assignment, you'll begin creating your backend by implementing your concepts in TypeScript. You'll learn to use Context, a simple CLI tool and a new way to both collaborate with LLMs and drive your implementation through design.
+## Design document
+
+[Design doc](DesignDocument.md)
+
+## Video links, Trace of incoming actions
+
+## Reflections document
+
+[Reflections doc](./Reflection.md)
+
+
+
+
 
 # Setup (Prep)
 

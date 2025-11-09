@@ -20,7 +20,8 @@ export const AddJobRequest: Sync = ({
   
   // The where clause transforms incoming frames
  where: async (frames) => {
-    console.log('frames', frames);
+
+    
   // Pick the token from each frame
   const verified = await frames.queryAsync(
     // Function
@@ -30,7 +31,8 @@ export const AddJobRequest: Sync = ({
     // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
     { userId: Symbol("userId") }
   );
-  console.log('verified user', verified)
+
+  
   return verified;
 },
 
@@ -68,7 +70,8 @@ export const GetJobRequest: Sync = ({
   
   // The where clause transforms incoming frames
  where: async (frames) => {
-    console.log('frames', frames);
+
+    
   // Pick the token from each frame
   const verified = await frames.queryAsync(
     // Function
@@ -78,7 +81,7 @@ export const GetJobRequest: Sync = ({
     // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
     { userId: Symbol("userId") }
   );
-  console.log('verified user', verified)
+
   return verified;
 },
 
@@ -120,7 +123,7 @@ export const UpdateJobRequest: Sync = ({
   
   // The where clause transforms incoming frames
  where: async (frames) => {
-    console.log('frames', frames);
+
   // Pick the token from each frame
   const verified = await frames.queryAsync(
     // Function
@@ -130,7 +133,8 @@ export const UpdateJobRequest: Sync = ({
     // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
     { userId: Symbol("userId") }
   );
-  console.log('verified user', verified)
+
+  
   return verified;
 },
 
@@ -173,7 +177,8 @@ export const RemoveJobRequest: Sync = ({
   
   // The where clause transforms incoming frames
  where: async (frames) => {
-    console.log('frames', frames);
+
+    
   // Pick the token from each frame
   const verified = await frames.queryAsync(
     // Function
@@ -183,7 +188,8 @@ export const RemoveJobRequest: Sync = ({
     // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
     { userId: Symbol("userId") }
   );
-  console.log('verified user', verified)
+
+  
   return verified;
 },
 

@@ -64,5 +64,4 @@ class FileStorageApi {
 
 export const fileStorageApi = new FileStorageApi()
 ```
-# response:
 

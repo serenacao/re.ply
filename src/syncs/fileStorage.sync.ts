@@ -21,7 +21,6 @@ export const UploadRequest: Sync = ({
     
     // The where clause transforms incoming frames
    where: async (frames) => {
-      console.log('frames', frames);
     // Pick the token from each frame
     const verified = await frames.queryAsync(
       // Function
@@ -31,7 +30,7 @@ export const UploadRequest: Sync = ({
       // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
       { userId: Symbol("userId") }
     );
-    console.log('verified user', verified)
+
     return verified;
   },
   
@@ -77,7 +76,7 @@ export const RemoveRequest: Sync = ({
     
     // The where clause transforms incoming frames
    where: async (frames) => {
-      console.log('frames', frames);
+
     // Pick the token from each frame
     const verified = await frames.queryAsync(
       // Function
@@ -87,7 +86,8 @@ export const RemoveRequest: Sync = ({
       // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
       { userId: Symbol("userId") }
     );
-    console.log('verified user', verified)
+ 
+
     return verified;
   },
   
@@ -133,7 +133,7 @@ export const RenameRequest: Sync = ({
     
     // The where clause transforms incoming frames
    where: async (frames) => {
-      console.log('frames', frames);
+
     // Pick the token from each frame
     const verified = await frames.queryAsync(
       // Function
@@ -143,7 +143,8 @@ export const RenameRequest: Sync = ({
       // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
       { userId: Symbol("userId") }
     );
-    console.log('verified user', verified)
+ 
+    
     return verified;
   },
   
@@ -186,7 +187,6 @@ export const RenameRequest: Sync = ({
     
     // The where clause transforms incoming frames
    where: async (frames) => {
-      console.log('frames', frames);
     // Pick the token from each frame
     const verified = await frames.queryAsync(
       // Function
@@ -196,7 +196,6 @@ export const RenameRequest: Sync = ({
       // Output mapping: bind `userId` from verifyTokens output to a new symbol in frame
       { userId: Symbol("userId") }
     );
-    console.log('verified user', verified)
     return verified;
   },
   
