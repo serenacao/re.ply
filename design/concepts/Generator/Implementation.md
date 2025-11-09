@@ -13,14 +13,21 @@
 ```typescript
 
 
+<<<<<<< HEAD
 import { GeminiLLM } from '../../../gemini-llm.ts'; // Assuming gemini-llm.ts is in the same directory
 
+=======
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
 export interface File {
     name: string;
     content: string;
 }
 
+<<<<<<< HEAD
 export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict with the file name and indicate it's the concept implementation
+=======
+export class GeneratorConcept { // Renamed to ConceptGenerator to avoid conflict with the file name and indicate it's the concept implementation
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     private question: string = ""; // Renamed to avoid conflict with method parameter
     private draft: string = "";
     private accepted: boolean = false;
@@ -37,7 +44,11 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
      *
      * **effects** updates files used to generate draft
      */
+<<<<<<< HEAD
     public updateInput({files} : {files: File[]}): void {
+=======
+    public updateInput(files: File[]): void {
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
         this.currentFiles = files;
     }
 
@@ -48,9 +59,13 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
      *
      * **effects** generate a draft to the question using the files provided with accepted FALSE
      */
+<<<<<<< HEAD
     async generate({question, files} : {question: string, files: File[]}): Promise<{draft: string}> {
         console.log('question on backend', question);
 
+=======
+    async generate(question: string, files: File[]): Promise<string> {
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
         if (this.accepted) {
             throw new Error("Cannot generate new draft after current draft has been accepted.");
         }
@@ -58,14 +73,40 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
             throw new Error("The input is not a valid question.");
         }
         this.question = question;
+<<<<<<< HEAD
         this.updateInput({files}); // Ensure files are updated for subsequent operations
+=======
+        this.updateInput(files); // Ensure files are updated for subsequent operations
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
         // console.log('🤖 Requesting response from LLM...'); // Log for debugging
         const prompt = this.createPrompt(this.currentFiles);
         const text = await this.llm.executeLLM(prompt);
         this.draft = text;
         this.accepted = false; // Reset accepted status for a new generation
         this.feedbackHistory = []; // Clear feedback history for a new question
+<<<<<<< HEAD
         return {draft: this.draft};
+=======
+        return text;
+    }
+
+    /**
+     * accept(): (draft: String)
+     *
+     * **requires** question to exist and draft status is not accepted
+     *
+     * **effects** set draft status to accepted
+     */
+    accept(): string {
+        if (!this.question) {
+            throw new Error("No question or draft exists to accept.");
+        }
+        if (this.accepted) {
+            throw new Error("Draft is already accepted." );
+        }
+        this.accepted = true;
+        return this.draft;
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     }
 
     /**
@@ -75,7 +116,11 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
      *
      * **effects** replaces current draft with newDraft, adds to feedback history
      */
+<<<<<<< HEAD
     async edit({newDraft}:{newDraft: string}): Promise<{draft: string}> {
+=======
+    async edit(newDraft: string): Promise<string> {
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
         if (!this.draft) {
             throw new Error("No draft exists to edit.");
         }
@@ -85,7 +130,11 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
         const oldDraft = this.draft;
         await this.updateFeedbackFromEdit(oldDraft, newDraft);
         this.draft = newDraft;
+<<<<<<< HEAD
         return {draft: this.draft};
+=======
+        return this.draft;
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     }
 
     /**
@@ -95,7 +144,11 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
      *
      * **effects** adds to feedback history, generate new text with updated content based off all feedback so far and current files
      */
+<<<<<<< HEAD
     async feedback({comment}:{comment: string}): Promise<{draft: string}> {
+=======
+    async feedback(comment: string): Promise<string> {
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
         if (!this.draft) {
             throw new Error("No draft exists to provide feedback on." );
         }
@@ -108,7 +161,11 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
         this.feedbackHistory.push(comment);
         const revised = await this.regenerateWithFeedback();
         this.draft = revised;
+<<<<<<< HEAD
         return {draft: this.draft};
+=======
+        return this.draft;
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     }
 
     // --- Internal / Helper Methods (renamed to private) ---
@@ -119,7 +176,11 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
     }
 
     private async isQuestion(input: string): Promise<boolean> {
+<<<<<<< HEAD
         const prompt = `You are a lenient text classifier.
+=======
+        const prompt = `You are a strict text classifier.
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
 
         Determine if the input is a message asking for help writing or improving materials related to a job, internship, or professional application.
 
@@ -143,13 +204,21 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
 
         Is unrelated to job or professional applications
 
+<<<<<<< HEAD
+=======
+        Asks a general question, performs math, or contains only numbers, greetings, or casual conversation
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
 
         Respond with exactly one word: Yes or No
         Do not include any explanations or reasoning.
 
         Input: "${input}"
         Answer:`;
+<<<<<<< HEAD
         return await this.isItem(prompt);
+=======
+        return this.isItem(prompt);
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     }
 
     private async isFeedback(input: string): Promise<boolean> {
@@ -184,8 +253,14 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
         Input: "${input}"
 
         Answer:`;
+<<<<<<< HEAD
         return await this.isItem(
             prompt);
+=======
+        return this.isItem(
+            prompt,
+            this.llm);
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     }
 
     private async regenerateWithFeedback(): Promise<string> {
@@ -229,10 +304,17 @@ export default class GeneratorConcept { // Renamed to ConceptGenerator to avoid 
             if (Array.isArray(feedback)){
                 this.feedbackHistory.push(...feedback);
             } else {
+<<<<<<< HEAD
                 console.error('❌ Parsed feedback is not an array:', feedback); // Log for debugging
             }
         } catch (error) {
             console.error('❌ Error parsing feedback from LLM:', (error as Error).message); // Log for debugging
+=======
+                // console.error('❌ Parsed feedback is not an array:', feedback); // Log for debugging
+            }
+        } catch (error) {
+            // console.error('❌ Error parsing feedback from LLM:', (error as Error).message); // Log for debugging
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
         }
 
     }

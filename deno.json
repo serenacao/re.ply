@@ -1,11 +1,17 @@
 {
     "imports": {
+<<<<<<< HEAD
          "@concepts/": "./src/concepts/",
         "@concepts": "./src/concepts/concepts.ts",
         "@test-concepts": "./src/concepts/test_concepts.ts",
         "@utils/": "./src/utils/",
         "@engine": "./src/engine/mod.ts",
         "@syncs": "./src/syncs/syncs.ts"
+=======
+        "@concepts/": "./src/concepts/",
+        "@std/dotenv": "jsr:@std/dotenv@^0.225.5",
+        "@utils/": "./src/utils/"
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     },
     "tasks": {
         "start": "deno run --allow-net --allow-write --allow-read --allow-sys --allow-env src/main.ts",

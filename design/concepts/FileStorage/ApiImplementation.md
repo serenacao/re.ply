@@ -2,6 +2,7 @@
 [@file-storage-spec](./FileStorage.md)
 [@file-storage-implementation](./Implementation.md)
 
+<<<<<<< HEAD
 ```typescript
 
 import type { 
@@ -65,3 +66,6 @@ class FileStorageApi {
 export const fileStorageApi = new FileStorageApi()
 ```
 
+=======
+# prompt: 
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48

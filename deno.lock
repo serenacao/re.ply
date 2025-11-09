@@ -5,6 +5,7 @@
     "jsr:@std/assert@*": "1.0.7",
     "jsr:@std/cli@*": "1.0.22",
     "jsr:@std/dotenv@*": "0.225.2",
+    "jsr:@std/dotenv@~0.225.5": "0.225.5",
     "jsr:@std/fs@*": "1.0.19",
     "jsr:@std/internal@^1.0.10": "1.0.10",
     "jsr:@std/internal@^1.0.5": "1.0.10",
@@ -16,7 +17,10 @@
     "npm:@google/genai@*": "1.21.0",
     "npm:@google/generative-ai@~0.24.1": "0.24.1",
     "npm:@types/mdast@4": "4.0.4",
+<<<<<<< HEAD
     "npm:@types/node@*": "24.2.0",
+=======
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     "npm:cors@^2.8.5": "2.8.5",
     "npm:dynamic@^4.2.2": "4.2.2",
     "npm:mdast-util-from-markdown@2": "2.0.2",
@@ -43,6 +47,9 @@
     },
     "@std/dotenv@0.225.2": {
       "integrity": "e2025dce4de6c7bca21dece8baddd4262b09d5187217e231b033e088e0c4dd23"
+    },
+    "@std/dotenv@0.225.5": {
+      "integrity": "9ce6f9d0ec3311f74a32535aa1b8c62ed88b1ab91b7f0815797d77a6f60c922f"
     },
     "@std/fs@1.0.19": {
       "integrity": "051968c2b1eae4d2ea9f79a08a3845740ef6af10356aff43d3e2ef11ed09fb06",
@@ -913,6 +920,12 @@
     "https://esm.sh/unist-util-visit@5.0.0/denonext/unist-util-visit.mjs": "a09fab16c3eafd466e5b5dab65ab76cb8f1eafa360b457eef35a529f59725d7f"
   },
   "workspace": {
+<<<<<<< HEAD
+=======
+    "dependencies": [
+      "jsr:@std/dotenv@~0.225.5"
+    ],
+>>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
     "packageJson": {
       "dependencies": [
         "npm:@google/generative-ai@~0.24.1",
