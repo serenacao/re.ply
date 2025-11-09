@@ -2,7 +2,6 @@
 import { Collection, Db } from "npm:mongodb";
 import { Empty, ID } from "@utils/types.ts";
 import { freshID } from "@utils/database.ts";
-<<<<<<< HEAD
 import { create, verify, getNumericDate } from "https://deno.land/x/djwt@v3.0.1/mod.ts"
 
 // Declare collection prefix, use concept name
@@ -16,11 +15,6 @@ const SECRET_KEY = await crypto.subtle.importKey(
   ["sign", "verify"],
 );
 
-=======
-
-// Declare collection prefix, use concept name
-const PREFIX = "UserAuthentication" + ".";
->>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
 
 /**
  * Type alias for the ID of a User.

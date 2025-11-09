@@ -4,11 +4,8 @@
 ctx
 ctx.exe
 .obsidian/workspace.json
-<<<<<<< HEAD
 src/concepts/concepts.ts
 src/concepts/test_concepts.ts
 src/syncs/syncs.ts
-=======
->>>>>>> 98a119c92660406502f9f66f8a4dc00091aafd48
 config.json
 connect.js
