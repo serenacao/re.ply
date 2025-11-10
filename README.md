@@ -6,6 +6,10 @@
 
 ## Video links, Trace of incoming actions
 
+[Video]()
+
+[Trace doc](./trace.md)
+
 ## Reflections document
 
 [Reflections doc](./Reflection.md)
