@@ -6,7 +6,7 @@
 
 ## Video links, Trace of incoming actions
 
-[Video]()
+[Video](./recording-final.mp4)
 
 [Trace doc](./trace.md)
 
